@@ -17,10 +17,20 @@ import type { Env } from './types'
 
 const app = new Hono<{ Bindings: Env }>()
 
-// Origins allowed to call the API: APP_URL always; localhost only outside prod.
+// Origins allowed to call the API.
+// CORS_ORIGINS (comma-separated) takes precedence; otherwise APP_URL.
+// localhost is always allowed outside production.
 function allowedOrigins(env: Env): string[] {
   const origins: string[] = []
-  if (env.APP_URL) origins.push(env.APP_URL.replace(/\/$/, ''))
+  const raw = env.CORS_ORIGINS?.trim()
+  if (raw) {
+    for (const o of raw.split(',')) {
+      const t = o.trim().replace(/\/$/, '')
+      if (t) origins.push(t)
+    }
+  } else if (env.APP_URL) {
+    origins.push(env.APP_URL.replace(/\/$/, ''))
+  }
   if (env.ENVIRONMENT !== 'production') {
     origins.push('http://localhost:3000', 'http://127.0.0.1:3000')
   }
