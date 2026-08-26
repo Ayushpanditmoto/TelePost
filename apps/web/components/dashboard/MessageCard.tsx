@@ -80,7 +80,9 @@ const UnsupportedFile = styled.div`
 `;
 
 const Caption = styled.div<{ $bare: boolean }>`
-  padding: ${({ $bare }) => ($bare ? '6px 12px 4px' : '10px 12px 4px')};
+  /* Compact vertical padding so short messages stay short. Left/right stays at
+     12px. Media case gets an even smaller top since the image sits above. */
+  padding: ${({ $bare }) => ($bare ? '4px 12px 3px' : '7px 12px 3px')};
 `;
 
 
@@ -101,7 +103,7 @@ const Meta = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 6px;
+  margin-top: 3px;
 `;
 
 const StatusBadge = styled.span<{ $status: string }>`
