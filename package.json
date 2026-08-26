@@ -1,0 +1,16 @@
+{
+  "name": "telepost",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:worker": "npm run dev --workspace=apps/worker",
+    "build": "npm run build --workspace=apps/web",
+    "db:generate": "npm run generate --workspace=packages/db",
+    "db:migrate:local": "npm run migrate:local --workspace=apps/worker"
+  }
+}

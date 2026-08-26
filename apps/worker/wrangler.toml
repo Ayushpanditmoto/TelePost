@@ -1,0 +1,28 @@
+name = "telepost-worker"
+main = "src/index.ts"
+compatibility_date = "2024-05-29"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "development"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "telepost-db"
+database_id = "YOUR_D1_DATABASE_ID"
+
+[[r2_buckets]]
+binding = "MEDIA_BUCKET"
+bucket_name = "telepost-media"
+
+[[queues.producers]]
+binding = "POST_QUEUE"
+queue = "telepost-post-queue"
+
+[[queues.consumers]]
+queue = "telepost-post-queue"
+max_batch_size = 10
+max_batch_timeout = 30
+
+[triggers]
+crons = ["* * * * *"]
