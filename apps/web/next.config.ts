@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname, "../../"),
   },
+  compiler: {
+    styledComponents: true,
+  },
 };
 
 export default nextConfig;

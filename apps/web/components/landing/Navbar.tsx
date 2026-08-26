@@ -1,9 +1,11 @@
-'use client'
+"use client";
 
-import React, { useState, useEffect } from 'react'
-import styled, { css } from 'styled-components'
-import Link from 'next/link'
+import React, { useState, useEffect } from "react";
+import styled, { css } from "styled-components";
+import Link from "next/link";
+import { Send } from "lucide-react";
 
+// ----- Navbar Container (glass on scroll) -----
 const Nav = styled.nav<{ $scrolled: boolean }>`
   position: fixed;
   top: 0;
@@ -13,23 +15,24 @@ const Nav = styled.nav<{ $scrolled: boolean }>`
   height: ${({ theme }) => theme.layout.navbarHeight};
   display: flex;
   align-items: center;
-  padding: 0 ${({ theme }) => theme.spacing['2xl']};
-  transition: background ${({ theme }) => theme.transition.default},
-    border-color ${({ theme }) => theme.transition.default},
-    backdrop-filter ${({ theme }) => theme.transition.default};
+  padding: 0 ${({ theme }) => theme.spacing["2xl"]};
+  transition: all ${({ theme }) => theme.transition.default};
 
   ${({ $scrolled, theme }) =>
     $scrolled
       ? css`
-          background: rgba(14, 22, 33, 0.92);
-          backdrop-filter: blur(12px);
+          background: ${theme.colors.bg.primary}cc;
+          backdrop-filter: blur(16px) saturate(180%);
+          -webkit-backdrop-filter: blur(16px) saturate(180%);
           border-bottom: 1px solid ${theme.colors.border.subtle};
+          box-shadow: 0 4px 30px rgba(0, 0, 0, 0.06);
         `
       : css`
           background: transparent;
           border-bottom: 1px solid transparent;
+          box-shadow: none;
         `}
-`
+`;
 
 const Inner = styled.div`
   width: 100%;
@@ -38,8 +41,9 @@ const Inner = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-`
+`;
 
+// ----- Logo (styled Link) -----
 const Logo = styled(Link)`
   display: flex;
   align-items: center;
@@ -48,20 +52,32 @@ const Logo = styled(Link)`
   font-weight: ${({ theme }) => theme.font.weight.bold};
   color: ${({ theme }) => theme.colors.text.primary};
   letter-spacing: -0.3px;
-`
+  text-decoration: none;
+`;
 
 const LogoIcon = styled.div`
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border-radius: ${({ theme }) => theme.radius.sm};
-  background: linear-gradient(135deg, #2196f3, #1565c0);
+  background: linear-gradient(
+    135deg,
+    ${({ theme }) => theme.colors.accent},
+    ${({ theme }) => theme.colors.accentHover}
+  );
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  color: #fff;
   flex-shrink: 0;
-`
+  box-shadow: 0 2px 12px ${({ theme }) => theme.colors.accent}30;
 
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+`;
+
+// ----- Navigation Links -----
 const NavLinks = styled.div`
   display: flex;
   align-items: center;
@@ -70,73 +86,105 @@ const NavLinks = styled.div`
   @media (max-width: ${({ theme }) => theme.breakpoint.md}) {
     display: none;
   }
-`
+`;
 
 const NavLink = styled.a`
   font-size: ${({ theme }) => theme.font.size.sm};
   font-weight: ${({ theme }) => theme.font.weight.medium};
   color: ${({ theme }) => theme.colors.text.secondary};
   transition: color ${({ theme }) => theme.transition.fast};
+  cursor: pointer;
+  text-decoration: none;
+  position: relative;
+
+  &::after {
+    content: "";
+    position: absolute;
+    bottom: -4px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: ${({ theme }) => theme.colors.accent};
+    transition: width ${({ theme }) => theme.transition.fast};
+  }
 
   &:hover {
     color: ${({ theme }) => theme.colors.text.primary};
+    &::after {
+      width: 100%;
+    }
   }
-`
+`;
 
-const NavActions = styled.div`
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing.md};
-`
-
-const TelegramLoginBtn = styled.button`
+// ----- Login Link (styled Link with button styles) -----
+const LoginLink = styled(Link)`
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.spacing.sm};
-  padding: 8px 18px;
+  padding: 8px 20px;
   border-radius: ${({ theme }) => theme.radius.full};
-  background: ${({ theme }) => theme.colors.accent};
+  background: linear-gradient(
+    135deg,
+    ${({ theme }) => theme.colors.accent},
+    ${({ theme }) => theme.colors.accentHover}
+  );
   color: #fff;
   font-size: ${({ theme }) => theme.font.size.sm};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
-  transition: background ${({ theme }) => theme.transition.fast},
-    transform ${({ theme }) => theme.transition.fast},
-    box-shadow ${({ theme }) => theme.transition.fast};
+  transition: all ${({ theme }) => theme.transition.fast};
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 16px ${({ theme }) => theme.colors.accent}30;
+  text-decoration: none;
 
   &:hover {
-    background: ${({ theme }) => theme.colors.accentHover};
-    transform: translateY(-1px);
-    box-shadow: ${({ theme }) => theme.shadow.glow};
+    transform: translateY(-2px);
+    box-shadow: 0 6px 28px ${({ theme }) => theme.colors.accent}50;
   }
 
   &:active {
-    transform: translateY(0);
+    transform: scale(0.97);
   }
-`
 
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+`;
+
+// Telegram SVG Icon (clean)
 const TelegramIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-    <path
-      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8l-1.68 7.93c-.12.54-.46.67-.93.42l-2.57-1.89-1.24 1.19c-.14.13-.25.25-.51.25l.18-2.59 4.72-4.26c.2-.18-.04-.28-.32-.1L7.6 14.44l-2.52-.79c-.54-.17-.55-.54.12-.8l9.85-3.79c.46-.17.86.11.59.74z"
-      fill="currentColor"
-    />
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
   </svg>
-)
+);
 
+// ============================================
+// Main Component
+// ============================================
 export default function Navbar() {
-  const [scrolled, setScrolled] = useState(false)
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 20)
-    window.addEventListener('scroll', handler, { passive: true })
-    return () => window.removeEventListener('scroll', handler)
-  }, [])
+    const handler = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", handler, { passive: true });
+    return () => window.removeEventListener("scroll", handler);
+  }, []);
 
   return (
     <Nav $scrolled={scrolled}>
       <Inner>
         <Logo href="/">
-          <LogoIcon>✈</LogoIcon>
+          <LogoIcon>
+            <Send />
+          </LogoIcon>
           TelePost
         </Logo>
 
@@ -147,15 +195,11 @@ export default function Navbar() {
           <NavLink href="#faq">FAQ</NavLink>
         </NavLinks>
 
-        <NavActions>
-          <Link href="/login" passHref legacyBehavior>
-            <TelegramLoginBtn as="a" id="navbar-login-btn">
-              <TelegramIcon />
-              Login with Telegram
-            </TelegramLoginBtn>
-          </Link>
-        </NavActions>
+        <LoginLink href="/login" id="navbar-login-btn">
+          <TelegramIcon />
+          Login with Telegram
+        </LoginLink>
       </Inner>
     </Nav>
-  )
+  );
 }

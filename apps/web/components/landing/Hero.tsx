@@ -1,24 +1,26 @@
-'use client'
+"use client";
 
-import React from 'react'
-import styled, { keyframes } from 'styled-components'
-import Link from 'next/link'
+import React from "react";
+import styled, { keyframes } from "styled-components";
+import Link from "next/link";
 
+// ----- Animations -----
 const float = keyframes`
   0%, 100% { transform: translateY(0px); }
   50% { transform: translateY(-12px); }
-`
+`;
 
 const shimmer = keyframes`
   0% { background-position: -200% center; }
   100% { background-position: 200% center; }
-`
+`;
 
 const fadeUp = keyframes`
   from { opacity: 0; transform: translateY(24px); }
   to { opacity: 1; transform: translateY(0); }
-`
+`;
 
+// ----- Hero Section -----
 const HeroSection = styled.section`
   min-height: 100vh;
   display: flex;
@@ -26,12 +28,17 @@ const HeroSection = styled.section`
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 120px ${({ theme }) => theme.spacing['2xl']} 80px;
+  padding: 120px ${({ theme }) => theme.spacing["2xl"]} 80px;
   position: relative;
   overflow: hidden;
-`
+`;
 
-const GradientOrb = styled.div<{ $x: string; $y: string; $color: string; $size: string }>`
+const GradientOrb = styled.div<{
+  $x: string;
+  $y: string;
+  $color: string;
+  $size: string;
+}>`
   position: absolute;
   width: ${({ $size }) => $size};
   height: ${({ $size }) => $size};
@@ -42,17 +49,17 @@ const GradientOrb = styled.div<{ $x: string; $y: string; $color: string; $size: 
   filter: blur(80px);
   opacity: 0.18;
   pointer-events: none;
-`
+`;
 
 const GridPattern = styled.div`
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(33,150,243,0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(33,150,243,0.04) 1px, transparent 1px);
+    linear-gradient(rgba(33, 150, 243, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(33, 150, 243, 0.04) 1px, transparent 1px);
   background-size: 60px 60px;
   pointer-events: none;
-`
+`;
 
 const Badge = styled.div`
   display: inline-flex;
@@ -69,7 +76,7 @@ const Badge = styled.div`
   text-transform: uppercase;
   margin-bottom: ${({ theme }) => theme.spacing.xl};
   animation: ${fadeUp} 0.6s ease both;
-`
+`;
 
 const Pulse = styled.span`
   width: 6px;
@@ -80,10 +87,17 @@ const Pulse = styled.span`
   animation: pulse 2s ease-in-out infinite;
 
   @keyframes pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(0.8); }
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.5;
+      transform: scale(0.8);
+    }
   }
-`
+`;
 
 const Heading = styled.h1`
   font-size: clamp(36px, 7vw, 72px);
@@ -102,7 +116,7 @@ const Heading = styled.h1`
     background-clip: text;
     animation: ${shimmer} 3s linear infinite;
   }
-`
+`;
 
 const Subheading = styled.p`
   font-size: clamp(16px, 2.5vw, 20px);
@@ -111,19 +125,20 @@ const Subheading = styled.p`
   line-height: ${({ theme }) => theme.font.lineHeight.relaxed};
   margin: ${({ theme }) => theme.spacing.xl} auto 0;
   animation: ${fadeUp} 0.6s ease 0.2s both;
-`
+`;
 
 const CTAGroup = styled.div`
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.spacing.md};
-  margin-top: ${({ theme }) => theme.spacing['2xl']};
+  margin-top: ${({ theme }) => theme.spacing["2xl"]};
   flex-wrap: wrap;
   justify-content: center;
   animation: ${fadeUp} 0.6s ease 0.3s both;
-`
+`;
 
-const PrimaryBtn = styled.button`
+// --- PRIMARY CTA BUTTON (now a styled Link) ---
+const PrimaryBtn = styled(Link)`
   display: flex;
   align-items: center;
   gap: 8px;
@@ -135,6 +150,7 @@ const PrimaryBtn = styled.button`
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   transition: all ${({ theme }) => theme.transition.default};
   box-shadow: 0 4px 20px rgba(33, 150, 243, 0.35);
+  text-decoration: none;
 
   &:hover {
     background: ${({ theme }) => theme.colors.accentHover};
@@ -145,8 +161,9 @@ const PrimaryBtn = styled.button`
   &:active {
     transform: translateY(0);
   }
-`
+`;
 
+// --- SECONDARY CTA (already a styled Link) ---
 const SecondaryBtn = styled(Link)`
   display: flex;
   align-items: center;
@@ -158,36 +175,37 @@ const SecondaryBtn = styled(Link)`
   font-size: ${({ theme }) => theme.font.size.md};
   font-weight: ${({ theme }) => theme.font.weight.medium};
   transition: all ${({ theme }) => theme.transition.default};
+  text-decoration: none;
 
   &:hover {
     border-color: ${({ theme }) => theme.colors.border.accent};
     color: ${({ theme }) => theme.colors.text.primary};
     background: ${({ theme }) => theme.colors.accentMuted};
   }
-`
+`;
 
 const Stats = styled.div`
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.spacing['2xl']};
-  margin-top: ${({ theme }) => theme.spacing['3xl']};
+  gap: ${({ theme }) => theme.spacing["2xl"]};
+  margin-top: ${({ theme }) => theme.spacing["3xl"]};
   animation: ${fadeUp} 0.6s ease 0.4s both;
 
   @media (max-width: ${({ theme }) => theme.breakpoint.sm}) {
     gap: ${({ theme }) => theme.spacing.xl};
   }
-`
+`;
 
 const Stat = styled.div`
   text-align: center;
-`
+`;
 
 const StatValue = styled.div`
-  font-size: ${({ theme }) => theme.font.size['2xl']};
+  font-size: ${({ theme }) => theme.font.size["2xl"]};
   font-weight: ${({ theme }) => theme.font.weight.bold};
   color: ${({ theme }) => theme.colors.text.primary};
   letter-spacing: -0.5px;
-`
+`;
 
 const StatLabel = styled.div`
   font-size: ${({ theme }) => theme.font.size.xs};
@@ -195,20 +213,20 @@ const StatLabel = styled.div`
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-top: 2px;
-`
+`;
 
 const StatDivider = styled.div`
   width: 1px;
   height: 32px;
   background: ${({ theme }) => theme.colors.border.subtle};
-`
+`;
 
 const PreviewWrapper = styled.div`
   width: 100%;
   max-width: 1100px;
   margin: 72px auto 0;
   animation: ${fadeUp} 0.8s ease 0.5s both;
-`
+`;
 
 const PreviewFrame = styled.div`
   border-radius: ${({ theme }) => theme.radius.lg};
@@ -217,7 +235,7 @@ const PreviewFrame = styled.div`
   overflow: hidden;
   box-shadow: ${({ theme }) => theme.shadow.xl};
   animation: ${float} 6s ease-in-out infinite;
-`
+`;
 
 const PreviewBar = styled.div`
   display: flex;
@@ -226,14 +244,14 @@ const PreviewBar = styled.div`
   padding: 12px 16px;
   border-bottom: 1px solid ${({ theme }) => theme.colors.border.subtle};
   background: ${({ theme }) => theme.colors.bg.tertiary};
-`
+`;
 
 const Dot = styled.div<{ $color: string }>`
   width: 10px;
   height: 10px;
   border-radius: 50%;
   background: ${({ $color }) => $color};
-`
+`;
 
 const PreviewContent = styled.div`
   display: flex;
@@ -242,7 +260,7 @@ const PreviewContent = styled.div`
   @media (max-width: ${({ theme }) => theme.breakpoint.md}) {
     height: 300px;
   }
-`
+`;
 
 const PreviewLeft = styled.div`
   width: 220px;
@@ -253,7 +271,7 @@ const PreviewLeft = styled.div`
   @media (max-width: ${({ theme }) => theme.breakpoint.md}) {
     width: 140px;
   }
-`
+`;
 
 const PreviewChannelLabel = styled.div`
   font-size: ${({ theme }) => theme.font.size.xs};
@@ -263,7 +281,7 @@ const PreviewChannelLabel = styled.div`
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   margin-bottom: ${({ theme }) => theme.spacing.md};
   padding-left: 4px;
-`
+`;
 
 const PreviewChannel = styled.div<{ $active?: boolean }>`
   display: flex;
@@ -271,9 +289,10 @@ const PreviewChannel = styled.div<{ $active?: boolean }>`
   gap: 8px;
   padding: 8px 10px;
   border-radius: ${({ theme }) => theme.radius.sm};
-  background: ${({ $active, theme }) => ($active ? theme.colors.accentMuted : 'transparent')};
+  background: ${({ $active, theme }) =>
+    $active ? theme.colors.accentMuted : "transparent"};
   margin-bottom: 2px;
-`
+`;
 
 const PreviewChannelAvatar = styled.div<{ $color: string }>`
   width: 32px;
@@ -287,20 +306,20 @@ const PreviewChannelAvatar = styled.div<{ $color: string }>`
   font-size: 12px;
   font-weight: 600;
   color: #fff;
-`
+`;
 
 const PreviewChannelName = styled.div`
   font-size: ${({ theme }) => theme.font.size.sm};
   color: ${({ theme }) => theme.colors.text.primary};
   font-weight: ${({ theme }) => theme.font.weight.medium};
-`
+`;
 
 const PreviewCenter = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-`
+`;
 
 const PreviewFeedHeader = styled.div`
   padding: 12px 16px;
@@ -308,7 +327,7 @@ const PreviewFeedHeader = styled.div`
   font-size: ${({ theme }) => theme.font.size.md};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.colors.text.primary};
-`
+`;
 
 const PreviewFeed = styled.div`
   flex: 1;
@@ -317,45 +336,46 @@ const PreviewFeed = styled.div`
   flex-direction: column;
   gap: ${({ theme }) => theme.spacing.md};
   overflow: hidden;
-`
+`;
 
 const PreviewCard = styled.div<{ $highlighted?: boolean }>`
   background: ${({ $highlighted, theme }) =>
     $highlighted ? theme.colors.bg.messageSelected : theme.colors.bg.message};
   border-radius: ${({ theme }) => theme.radius.md};
   padding: 10px 12px;
-  border: 1px solid ${({ $highlighted, theme }) =>
-    $highlighted ? theme.colors.border.accent : 'transparent'};
-`
+  border: 1px solid
+    ${({ $highlighted, theme }) =>
+      $highlighted ? theme.colors.border.accent : "transparent"};
+`;
 
 const PreviewCardText = styled.div`
   font-size: ${({ theme }) => theme.font.size.sm};
   color: ${({ theme }) => theme.colors.text.primary};
   line-height: 1.5;
   margin-bottom: 6px;
-`
+`;
 
 const PreviewCardMeta = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-`
+`;
 
 const PreviewCardBadge = styled.span<{ $status: string }>`
   font-size: ${({ theme }) => theme.font.size.xs};
   color: ${({ $status, theme }) =>
-    $status === 'scheduled'
+    $status === "scheduled"
       ? theme.colors.status.scheduled
-      : $status === 'published'
-      ? theme.colors.status.published
-      : theme.colors.status.draft};
+      : $status === "published"
+        ? theme.colors.status.published
+        : theme.colors.status.draft};
   font-weight: ${({ theme }) => theme.font.weight.medium};
-`
+`;
 
 const PreviewCardTime = styled.span`
   font-size: ${({ theme }) => theme.font.size.xs};
   color: ${({ theme }) => theme.colors.text.timestamp};
-`
+`;
 
 const PreviewComposer = styled.div`
   padding: 10px 16px;
@@ -363,7 +383,7 @@ const PreviewComposer = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-`
+`;
 
 const PreviewInput = styled.div`
   flex: 1;
@@ -373,12 +393,12 @@ const PreviewInput = styled.div`
   display: flex;
   align-items: center;
   padding: 0 12px;
-`
+`;
 
 const PreviewInputText = styled.span`
   font-size: ${({ theme }) => theme.font.size.sm};
   color: ${({ theme }) => theme.colors.text.muted};
-`
+`;
 
 const PreviewSendBtn = styled.div`
   width: 32px;
@@ -390,8 +410,11 @@ const PreviewSendBtn = styled.div`
   justify-content: center;
   font-size: 14px;
   flex-shrink: 0;
-`
+`;
 
+// ============================================
+// Main Component
+// ============================================
 export default function Hero() {
   return (
     <HeroSection id="hero">
@@ -405,21 +428,18 @@ export default function Hero() {
       </Badge>
 
       <Heading>
-        Schedule your Telegram content.{' '}
-        <span>Automatically.</span>
+        Schedule your Telegram content. <span>Automatically.</span>
       </Heading>
 
       <Subheading>
-        Create, schedule and manage Telegram channel posts from one simple dashboard.
-        Your bot publishes. You stay in control.
+        Create, schedule and manage Telegram channel posts from one simple
+        dashboard. Your bot publishes. You stay in control.
       </Subheading>
 
       <CTAGroup>
-        <Link href="/login" passHref legacyBehavior>
-          <PrimaryBtn as="a" id="hero-get-started-btn">
-            ✈ Get Started Free
-          </PrimaryBtn>
-        </Link>
+        <PrimaryBtn href="/login" id="hero-get-started-btn">
+          ✈ Get Started Free
+        </PrimaryBtn>
         <SecondaryBtn href="#pricing" id="hero-view-plans-btn">
           View Plans →
         </SecondaryBtn>
@@ -469,21 +489,33 @@ export default function Hero() {
               <PreviewFeedHeader>@CryptoTrading</PreviewFeedHeader>
               <PreviewFeed>
                 <PreviewCard $highlighted>
-                  <PreviewCardText>📈 BTC is approaching yesterday&apos;s high at $68,420. Watch for a breakout...</PreviewCardText>
+                  <PreviewCardText>
+                    📈 BTC is approaching yesterday&apos;s high at $68,420.
+                    Watch for a breakout...
+                  </PreviewCardText>
                   <PreviewCardMeta>
-                    <PreviewCardBadge $status="scheduled">🕐 Scheduled · 9:00 PM</PreviewCardBadge>
+                    <PreviewCardBadge $status="scheduled">
+                      🕐 Scheduled · 9:00 PM
+                    </PreviewCardBadge>
                     <PreviewCardTime>Today</PreviewCardTime>
                   </PreviewCardMeta>
                 </PreviewCard>
                 <PreviewCard>
-                  <PreviewCardText>📊 Daily Trading Recap — Market closed green. BTC +3.2%, ETH +4.1%...</PreviewCardText>
+                  <PreviewCardText>
+                    📊 Daily Trading Recap — Market closed green. BTC +3.2%, ETH
+                    +4.1%...
+                  </PreviewCardText>
                   <PreviewCardMeta>
-                    <PreviewCardBadge $status="published">✓ Published</PreviewCardBadge>
+                    <PreviewCardBadge $status="published">
+                      ✓ Published
+                    </PreviewCardBadge>
                     <PreviewCardTime>11:00 PM</PreviewCardTime>
                   </PreviewCardMeta>
                 </PreviewCard>
                 <PreviewCard>
-                  <PreviewCardText>⚡️ New Signal: ETH/USDT · Entry: $3,420</PreviewCardText>
+                  <PreviewCardText>
+                    ⚡️ New Signal: ETH/USDT · Entry: $3,420
+                  </PreviewCardText>
                   <PreviewCardMeta>
                     <PreviewCardBadge $status="draft">○ Draft</PreviewCardBadge>
                     <PreviewCardTime>—</PreviewCardTime>
@@ -502,5 +534,5 @@ export default function Hero() {
         </PreviewFrame>
       </PreviewWrapper>
     </HeroSection>
-  )
+  );
 }
