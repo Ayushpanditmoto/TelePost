@@ -1,9 +1,8 @@
 // Publishing pipeline, part 2: queue consumer — send to Telegram and record outcome.
 import { eq } from 'drizzle-orm'
 import { createDb } from '../db'
-import { postMedia, posts, telegramBots, telegramChannels } from '@telepost/db'
+import { postMedia, posts, telegramChannels } from '@telepost/db'
 import type { Env } from '../types'
-import { decryptSecret } from './crypto'
 import {
   sendMessage,
   sendMedia,
@@ -59,23 +58,8 @@ export async function processPublishMessage(
     return 'failed'
   }
 
-  const [bot] = await db
-    .select()
-    .from(telegramBots)
-    .where(eq(telegramBots.id, channel.botId))
-    .limit(1)
-  if (!bot) {
-    await markFailed(db, post.id, 'Bot no longer exists', post.retryCount)
-    return 'failed'
-  }
-
-  let token: string
-  try {
-    token = await decryptSecret(env, bot.encryptedToken)
-  } catch {
-    await markFailed(db, post.id, 'Failed to decrypt bot token', post.retryCount)
-    return 'failed'
-  }
+  // Publish through the platform's own bot (@Panditfxbot) — no per-user tokens.
+  const token = env.TELEGRAM_BOT_TOKEN
 
   let result: TelegramResponse<TelegramMessage>
   try {

@@ -135,8 +135,8 @@ const FEATURES = [
   },
   {
     icon: '🤖',
-    title: 'Your Own Bot',
-    desc: 'Connect your personal Telegram bot. You keep full control — we never hold your credentials in plain text.',
+    title: 'No Bot Setup Needed',
+    desc: 'No BotFather, no tokens, no API keys. Just add @Panditfxbot as an admin to your channel and start posting.',
   },
   {
     icon: '🕓',
@@ -150,8 +150,8 @@ const FEATURES = [
   },
   {
     icon: '🔐',
-    title: 'Secure Credentials',
-    desc: 'Bot tokens are encrypted at rest. Your token is validated once and never exposed again — ever.',
+    title: 'Simple & Safe',
+    desc: 'We never ask for your bot token or credentials. You only add our bot as an admin — nothing more.',
   },
 ]
 

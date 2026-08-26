@@ -150,8 +150,8 @@ export default function LoginPage() {
         </Logo>
         <Title>Log in to TelePost</Title>
         <Subtitle>
-          Sign in with Telegram to schedule posts for your channels. Your bot
-          never gets access to your account.
+          Sign in with Telegram to schedule posts for your channels. No bot
+          setup needed — just add <b>@Panditfxbot</b> as an admin.
         </Subtitle>
 
         <TelegramLoginButton />

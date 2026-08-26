@@ -122,26 +122,20 @@ const STEPS = [
   },
   {
     num: 2,
-    title: 'Choose a plan',
-    desc: 'Start for free with one channel. Upgrade to Pro or Business when you need more scale.',
+    title: 'Add @Panditfxbot to your channel',
+    desc: 'No bot setup needed. Open your channel, go to Administrators, and add @Panditfxbot as an admin.',
     active: false,
   },
   {
     num: 3,
-    title: 'Connect your Telegram bot',
-    desc: 'Create a bot via BotFather, paste the token once. We validate and encrypt it — you never see it again.',
+    title: 'Connect your channel',
+    desc: 'Paste your channel’s @username in the dashboard. We instantly verify the bot has access.',
     active: false,
   },
   {
     num: 4,
-    title: 'Connect your channel',
-    desc: 'Add your bot as an admin of your channel, then connect it here. We verify access with a test message.',
-    active: false,
-  },
-  {
-    num: 5,
     title: 'Create and schedule posts',
-    desc: 'Write your message, attach media, pick a time. Your bot publishes automatically — even while you sleep.',
+    desc: 'Write your message, attach media, pick a time. We publish automatically — even while you sleep.',
     active: false,
   },
 ]

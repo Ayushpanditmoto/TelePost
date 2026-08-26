@@ -1,12 +1,14 @@
 import { Hono } from 'hono'
 import { and, eq } from 'drizzle-orm'
 import { createDb } from '../db'
-import { telegramBots, telegramChannels } from '@telepost/db'
+import { telegramChannels } from '@telepost/db'
 import type { HonoEnv } from '../types'
 import { requireAuth } from '../lib/auth'
-import { decryptSecret } from '../lib/crypto'
 import { getChat, getChatMember, sendMessage } from '../lib/telegram'
 import { countUserChannels, getUserPlan } from '../lib/planLimits'
+
+// Platform bot that publishes for all users (from TELEGRAM_BOT_TOKEN env).
+const PLATFORM_BOT_ID = 8985221169
 
 export const channelRoutes = new Hono<HonoEnv>()
 
@@ -16,7 +18,7 @@ const ALLOWED_CHAT_TYPES = new Set(['channel', 'supergroup'])
 function toPublicChannel(row: typeof telegramChannels.$inferSelect) {
   return {
     id: row.id,
-    botId: row.botId,
+    telegramBotId: row.telegramBotId,
     telegramChatId: row.telegramChatId,
     username: row.username,
     title: row.title,
@@ -40,34 +42,19 @@ channelRoutes.get('/', async (c) => {
   return c.json({ channels: channels.map(toPublicChannel) })
 })
 
-// POST /api/channels — connect a channel via the user's bot.
-// Body: { botId: string, chatId: string } (chatId can be @username or numeric id)
+// POST /api/channels — connect a channel by adding @Panditfxbot as admin.
+// Body: { chatId: string } (@username or numeric id)
 channelRoutes.post('/', async (c) => {
   const user = await requireAuth(c)
-  const body = (await c.req.json<{ botId?: unknown; chatId?: unknown }>().catch(() => null)) ?? {}
-  const botId = typeof body.botId === 'string' ? body.botId.trim() : ''
-  const chatId = typeof body.chatId === 'string' ? body.chatId.trim() : ''
+  const body = (await c.req.json<{ chatId?: unknown }>().catch(() => null)) ?? {}
+  const chatId = typeof body.chatId === 'string' ? body.chatId.trim().replace(/^@/, '') : ''
 
-  if (!botId || !chatId) {
-    return c.json({ error: 'botId and chatId are required' }, 400)
+  if (!chatId) {
+    return c.json({ error: 'chatId is required' }, 400)
   }
 
   const db = createDb(c.env.DB)
-
-  // The bot must belong to the authenticated user.
-  const [bot] = await db
-    .select()
-    .from(telegramBots)
-    .where(and(eq(telegramBots.id, botId), eq(telegramBots.userId, user.id)))
-    .limit(1)
-  if (!bot) return c.json({ error: 'Bot not found' }, 404)
-
-  let token: string
-  try {
-    token = await decryptSecret(c.env, bot.encryptedToken)
-  } catch {
-    return c.json({ error: 'Failed to decrypt bot token' }, 500)
-  }
+  const token = c.env.TELEGRAM_BOT_TOKEN
 
   // Resolve the chat so we store the canonical id/title/username.
   const chatRes = await getChat(token, chatId)
@@ -86,8 +73,8 @@ channelRoutes.post('/', async (c) => {
     )
   }
 
-  // The bot must be an administrator (or creator) to post.
-  const memberRes = await getChatMember(token, String(chat.id), bot.telegramBotId)
+  // @Panditfxbot must be an admin (or creator) to post.
+  const memberRes = await getChatMember(token, String(chat.id), PLATFORM_BOT_ID)
   if (!memberRes.ok) {
     return c.json(
       { error: `Cannot verify bot membership: ${memberRes.description ?? 'Unknown error'}` },
@@ -97,7 +84,7 @@ channelRoutes.post('/', async (c) => {
   const status = memberRes.result?.status
   if (status !== 'administrator' && status !== 'creator') {
     return c.json(
-      { error: `Bot must be an administrator of this channel (current status: ${status})` },
+      { error: `@Panditfxbot must be an administrator of this channel (current status: ${status}). Add the bot as admin first.` },
       403
     )
   }
@@ -135,7 +122,7 @@ channelRoutes.post('/', async (c) => {
     .insert(telegramChannels)
     .values({
       userId: user.id,
-      botId,
+      telegramBotId: PLATFORM_BOT_ID,
       telegramChatId,
       username: chat.username ?? null,
       title: chat.title ?? chatId,
@@ -182,7 +169,7 @@ channelRoutes.delete('/:id', async (c) => {
   return c.json({ success: true })
 })
 
-// POST /api/channels/:id/verify — send a test message via the bot.
+// POST /api/channels/:id/verify — send a test message via the platform bot.
 channelRoutes.post('/:id/verify', async (c) => {
   const user = await requireAuth(c)
   const db = createDb(c.env.DB)
@@ -194,22 +181,8 @@ channelRoutes.post('/:id/verify', async (c) => {
     .limit(1)
   if (!channel) return c.json({ error: 'Channel not found' }, 404)
 
-  const [bot] = await db
-    .select()
-    .from(telegramBots)
-    .where(eq(telegramBots.id, channel.botId))
-    .limit(1)
-  if (!bot) return c.json({ error: 'Bot not found' }, 404)
-
-  let token: string
-  try {
-    token = await decryptSecret(c.env, bot.encryptedToken)
-  } catch {
-    return c.json({ error: 'Failed to decrypt bot token' }, 500)
-  }
-
   const res = await sendMessage(
-    token,
+    c.env.TELEGRAM_BOT_TOKEN,
     channel.telegramChatId,
     '✅ This channel is connected to TelePost and ready for scheduled posts!'
   )

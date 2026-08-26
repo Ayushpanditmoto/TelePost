@@ -3,7 +3,8 @@
 import React from 'react'
 import styled from 'styled-components'
 import { useDashboardStore } from '@/store/dashboardStore'
-import { MOCK_CHANNELS, MOCK_POSTS } from '@/lib/mockData'
+import { MOCK_POSTS } from '@/lib/mockData'
+import { useChannels } from '@/hooks/useChannels'
 import MessageCard from './MessageCard'
 import MessageComposer from './MessageComposer'
 
@@ -195,10 +196,11 @@ const FILTERS = [
 
 export default function CenterPanel() {
   const { selectedChannelId } = useDashboardStore()
+  const { data: channels = [] } = useChannels()
   const [activeFilter, setActiveFilter] = React.useState('all')
 
-  const channel = MOCK_CHANNELS.find((c) => c.id === selectedChannelId)
-  const channelIndex = MOCK_CHANNELS.findIndex((c) => c.id === selectedChannelId)
+  const channel = channels.find((c) => c.id === selectedChannelId)
+  const channelIndex = channels.findIndex((c) => c.id === selectedChannelId)
 
   const posts = MOCK_POSTS.filter(
     (p) =>
@@ -216,8 +218,10 @@ export default function CenterPanel() {
                 {channel.title.charAt(0)}
               </ChannelAvatar>
               <ChannelDetails>
-                <ChannelName>{channel.username}</ChannelName>
-                <ChannelSub>{channel.memberCount.toLocaleString()} members</ChannelSub>
+                <ChannelName>
+                  {channel.username ? `@${channel.username}` : channel.title}
+                </ChannelName>
+                <ChannelSub>{channel.title}</ChannelSub>
               </ChannelDetails>
             </>
           )}

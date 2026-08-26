@@ -102,12 +102,16 @@ const AnswerInner = styled.div`
 
 const FAQS = [
   {
-    q: 'Do I need to create a Telegram bot?',
-    a: 'Yes — but it takes under a minute. Message @BotFather on Telegram, create a bot, and paste the token into TelePost. We validate it, encrypt it, and handle everything from there.',
+    q: 'Do I need to create my own Telegram bot?',
+    a: 'No. You don’t need BotFather, tokens, or API keys. Just add @Panditfxbot as an admin to your channel and you’re ready to schedule posts.',
   },
   {
-    q: 'Is my bot token safe?',
-    a: 'Absolutely. Your token is validated once during connection, then encrypted using AES-256-GCM. We never return it in API responses, never log it, and never store it in plain text. Only the publishing engine decrypts it temporarily to send messages.',
+    q: 'Why add @Panditfxbot as an admin?',
+    a: 'Our bot publishes your scheduled posts. As an admin of your channel, it can post on your schedule — and nothing else. You can remove it any time.',
+  },
+  {
+    q: 'Is my channel safe?',
+    a: 'Yes. We only ask for the channel’s @username. We never ask for your bot token, your password, or access to your accounts. The bot can only post as an admin.',
   },
   {
     q: 'What happens if a post fails to publish?',
@@ -115,15 +119,15 @@ const FAQS = [
   },
   {
     q: 'Can I manage multiple Telegram channels?',
-    a: 'Yes — depending on your plan. The Free plan supports 1 channel. Pro supports 5, and Business supports up to 20. Each channel connects through your own bot.',
+    a: 'Yes — add @Panditfxbot as an admin to each channel and connect them all from the dashboard.',
   },
   {
     q: 'Does scheduling work while I am offline?',
-    a: 'Yes. Scheduling is fully automated on the server side. A cron job checks for due posts every minute and publishes them through your bot — you do not need to be online.',
+    a: 'Yes. Scheduling is fully automated on the server side. A cron job checks for due posts every minute and publishes them through the bot — you do not need to be online.',
   },
   {
-    q: 'Can I use the same bot for multiple channels?',
-    a: 'Yes. One bot can be added as admin on multiple channels. Just make sure it has permission to post messages in each one.',
+    q: 'Can I use the bot on multiple channels?',
+    a: 'Yes. Add @Panditfxbot as an admin to as many channels as you manage, then connect each one from the dashboard.',
   },
   {
     q: 'What timezones are supported?',

@@ -1,12 +1,13 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import styled from 'styled-components'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useDashboardStore } from '@/store/dashboardStore'
 import { useMe, useLogout } from '@/hooks/useAuth'
-import { MOCK_CHANNELS } from '@/lib/mockData'
+import { useChannels } from '@/hooks/useChannels'
+import AddChannelDialog from './AddChannelDialog'
 
 const Panel = styled.aside`
   width: ${({ theme }) => theme.layout.leftPanelWidth};
@@ -269,8 +270,10 @@ export default function LeftPanel() {
   const { selectedChannelId, setSelectedChannelId, clearSelectedPost } =
     useDashboardStore()
   const { data: user } = useMe()
+  const { data: channels = [] } = useChannels()
   const logout = useLogout()
   const [loggingOut, setLoggingOut] = React.useState(false)
+  const [showAddChannel, setShowAddChannel] = useState(false)
 
   const handleLogout = async () => {
     setLoggingOut(true)
@@ -299,24 +302,34 @@ export default function LeftPanel() {
       <ScrollArea>
         <SectionLabel>Channels</SectionLabel>
 
-        {MOCK_CHANNELS.map((channel, i) => (
-          <ChannelItem
-            key={channel.id}
-            $active={selectedChannelId === channel.id}
-            onClick={() => handleChannelClick(channel.id)}
-            id={`channel-item-${channel.id}`}
-          >
-            <ChannelAvatar $color={AVATAR_COLORS[i % AVATAR_COLORS.length] ?? '#2196f3'}>
-              {channel.title.charAt(0)}
-            </ChannelAvatar>
-            <ChannelInfo>
-              <ChannelName>{channel.username}</ChannelName>
-              <ChannelMeta>{channel.memberCount.toLocaleString()} members</ChannelMeta>
-            </ChannelInfo>
-          </ChannelItem>
-        ))}
+        {channels.length === 0 ? (
+          <ChannelMeta style={{ padding: '4px 16px 12px' }}>
+            No channels yet — add one below.
+          </ChannelMeta>
+        ) : (
+          channels.map((channel, i) => (
+            <ChannelItem
+              key={channel.id}
+              $active={selectedChannelId === channel.id}
+              onClick={() => handleChannelClick(channel.id)}
+              id={`channel-item-${channel.id}`}
+            >
+              <ChannelAvatar
+                $color={AVATAR_COLORS[i % AVATAR_COLORS.length] ?? '#2196f3'}
+              >
+                {channel.title.charAt(0)}
+              </ChannelAvatar>
+              <ChannelInfo>
+                <ChannelName>
+                  {channel.username ? `@${channel.username}` : channel.title}
+                </ChannelName>
+                <ChannelMeta>{channel.title}</ChannelMeta>
+              </ChannelInfo>
+            </ChannelItem>
+          ))
+        )}
 
-        <AddChannelBtn id="add-channel-btn">
+        <AddChannelBtn onClick={() => setShowAddChannel(true)} id="add-channel-btn">
           <AddIcon>+</AddIcon>
           Add Channel
         </AddChannelBtn>
@@ -357,6 +370,11 @@ export default function LeftPanel() {
           ⎋
         </LogoutBtn>
       </UserSection>
+
+      <AddChannelDialog
+        open={showAddChannel}
+        onClose={() => setShowAddChannel(false)}
+      />
     </Panel>
   )
 }

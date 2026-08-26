@@ -91,6 +91,9 @@ export const subscriptions = sqliteTable(
 )
 
 // ─── Telegram Bots ───────────────────────────────────────────────────────────
+// Kept for reference; TelePost now publishes through the platform's own bot
+// (@Panditfxbot, from TELEGRAM_BOT_TOKEN env) so users never create their own.
+// This table is no longer used by the channel/publish flows.
 
 export const telegramBots = sqliteTable(
   'telegram_bots',
@@ -119,9 +122,9 @@ export const telegramChannels = sqliteTable(
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    botId: text('bot_id')
-      .notNull()
-      .references(() => telegramBots.id, { onDelete: 'cascade' }),
+    // ID of the platform's own bot (@Panditfxbot). Stored for display/audit;
+    // the actual token always comes from TELEGRAM_BOT_TOKEN at publish time.
+    telegramBotId: integer('telegram_bot_id').notNull(),
     telegramChatId: text('telegram_chat_id').notNull(),
     username: text('username'),
     title: text('title').notNull(),
@@ -130,7 +133,6 @@ export const telegramChannels = sqliteTable(
   },
   (t) => ({
     userIdIdx: index('channels_user_id_idx').on(t.userId),
-    botIdIdx: index('channels_bot_id_idx').on(t.botId),
   })
 )
 

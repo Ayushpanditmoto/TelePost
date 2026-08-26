@@ -3,7 +3,8 @@
 import React, { useEffect } from 'react'
 import styled, { keyframes } from 'styled-components'
 import { useDashboardStore } from '@/store/dashboardStore'
-import { MOCK_POSTS, MOCK_CHANNELS, formatPostDate } from '@/lib/mockData'
+import { MOCK_POSTS, formatPostDate } from '@/lib/mockData'
+import { useChannels } from '@/hooks/useChannels'
 
 const slideIn = keyframes`
   from { transform: translateX(100%); opacity: 0; }
@@ -205,9 +206,10 @@ const DangerAction = styled.button`
 
 export default function RightPanel() {
   const { selectedPostId, clearSelectedPost } = useDashboardStore()
+  const { data: channels = [] } = useChannels()
 
   const post = MOCK_POSTS.find((p) => p.id === selectedPostId)
-  const channel = MOCK_CHANNELS.find((c) => c.id === post?.channelId)
+  const channel = channels.find((c) => c.id === post?.channelId)
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

@@ -3,7 +3,6 @@ import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { and, eq, lte } from 'drizzle-orm'
 import { authRoutes } from './routes/auth'
-import { botRoutes } from './routes/bots'
 import { webhookRoutes } from './routes/bot'
 import { channelRoutes } from './routes/channels'
 import { postRoutes } from './routes/posts'
@@ -62,7 +61,6 @@ app.get('/api/health', (c) => {
 
 // Routes
 app.route('/api/auth', authRoutes)
-app.route('/api/bots', botRoutes)          // manage configured Telegram bots
 app.route('/api/bot', webhookRoutes)
 app.route('/api/channels', channelRoutes)
 app.route('/api/posts', postRoutes)
