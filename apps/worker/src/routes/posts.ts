@@ -258,10 +258,10 @@ postRoutes.post('/:id/publish', async (c) => {
     return c.json({ error: `Cannot publish a ${post.status} post` }, 409)
   }
 
-  const queued = await enqueuePostForPublish(c, post.id)
+  const queued = await enqueuePostForPublish(c.env, post.id)
   if (!queued) return c.json({ error: 'Failed to queue post' }, 500)
 
-  return c.json({ queued: true, idempotencyKey: queued.idempotencyKey })
+  return c.json({ queued: true, idempotencyKey: queued })
 })
 
 // POST /api/posts/:id/schedule — schedule a draft for a future time.

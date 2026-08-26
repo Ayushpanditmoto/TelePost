@@ -1,45 +1,54 @@
-// Shared helpers for enqueueing posts to the publish queue.
-import { eq } from 'drizzle-orm'
-import type { Context } from 'hono'
-import { createDb, type Db } from '../db'
+// Publishing pipeline, part 1: atomic claim → enqueue.
+import { and, eq, isNull } from 'drizzle-orm'
+import { createDb } from '../db'
 import { posts } from '@telepost/db'
-import type { HonoEnv } from '../types'
+import type { Env } from '../types'
 
 export interface PublishQueueMessage {
   postId: string
   idempotencyKey: string
 }
 
-// Atomically claim a post for publishing (set idempotency key only if null) and
-// enqueue it. Returns null if the key was already set (already in flight).
+function nowIso(): string {
+  return new Date().toISOString()
+}
+
+/**
+ * Atomically claim a post for publishing (idempotency key set only if null) and
+ * enqueue it. Returns the key used, or null when the post is missing / already
+ * claimed by a concurrent publisher (that caller will do the send).
+ */
 export async function enqueuePostForPublish(
-  c: Context<HonoEnv>,
+  env: Env,
   postId: string
-): Promise<PublishQueueMessage | null> {
-  const db: Db = createDb(c.env.DB)
-  const [row] = await db
-    .select()
-    .from(posts)
-    .where(eq(posts.id, postId))
-    .limit(1)
-  if (!row) return null
+): Promise<string | null> {
+  const db = createDb(env.DB)
+  const [post] = await db.select().from(posts).where(eq(posts.id, postId)).limit(1)
+  if (!post) return null
 
-  const idempotencyKey = row.idempotencyKey ?? crypto.randomUUID()
-
-  if (!row.idempotencyKey) {
-    const updated = await db
+  // Already has a key (e.g. retrying after failure): reuse it so any in-flight
+  // duplicate messages dedupe against the same value.
+  if (post.idempotencyKey) {
+    await db
       .update(posts)
-      .set({
-        idempotencyKey,
-        status: 'publishing',
-        updatedAt: new Date().toISOString(),
-      })
+      .set({ status: 'publishing', updatedAt: nowIso() })
       .where(eq(posts.id, postId))
-      .returning()
-    if (!updated[0]) return null
+    await env.POST_QUEUE.send({
+      postId,
+      idempotencyKey: post.idempotencyKey,
+    } satisfies PublishQueueMessage)
+    return post.idempotencyKey
   }
 
-  await c.env.POST_QUEUE.send({ postId, idempotencyKey })
+  const key = crypto.randomUUID()
+  const claimed = await db
+    .update(posts)
+    .set({ idempotencyKey: key, status: 'publishing', updatedAt: nowIso() })
+    .where(and(eq(posts.id, postId), isNull(posts.idempotencyKey)))
+    .returning()
 
-  return { postId, idempotencyKey }
+  if (!claimed[0]) return null // concurrent claim won; it will enqueue.
+
+  await env.POST_QUEUE.send({ postId, idempotencyKey: key } satisfies PublishQueueMessage)
+  return key
 }

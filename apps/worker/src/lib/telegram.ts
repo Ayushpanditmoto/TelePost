@@ -23,6 +23,18 @@ export interface TelegramUser {
 
 const API_BASE = 'https://api.telegram.org'
 
+function parseTelegramResponse<T>(res: Response): Promise<TelegramResponse<T>> {
+  const contentType = res.headers.get('content-type') ?? ''
+  if (!contentType.includes('application/json')) {
+    return res.text().then((text) => ({
+      ok: false as const,
+      error_code: res.status,
+      description: text.slice(0, 500),
+    }))
+  }
+  return res.json() as Promise<TelegramResponse<T>>
+}
+
 export async function callTelegram<T>(
   token: string,
   method: string,
@@ -35,13 +47,37 @@ export async function callTelegram<T>(
   })
 
   // Handle non-JSON error responses defensively.
-  const contentType = res.headers.get('content-type') ?? ''
-  if (!contentType.includes('application/json')) {
-    const text = await res.text()
-    return { ok: false, error_code: res.status, description: text.slice(0, 500) }
+  return parseTelegramResponse<T>(res)
+}
+
+// Send binary media (photo/video) via multipart upload — used by the publisher
+// when a post has R2-attached media.
+export async function sendMedia(
+  token: string,
+  method: 'sendPhoto' | 'sendVideo',
+  chatId: string,
+  bytes: ArrayBuffer,
+  filename: string,
+  mimeType: string,
+  caption?: string
+): Promise<TelegramResponse<TelegramMessage>> {
+  const form = new FormData()
+  form.append('chat_id', chatId)
+  form.append(
+    method === 'sendVideo' ? 'video' : 'photo',
+    new Blob([bytes], { type: mimeType }),
+    filename
+  )
+  if (caption && caption.length > 0) {
+    // Telegram caps media captions at 1024 characters.
+    form.append('caption', caption.slice(0, 1024))
   }
 
-  return (await res.json()) as TelegramResponse<T>
+  const res = await fetch(`${API_BASE}/bot${token}/${method}`, {
+    method: 'POST',
+    body: form,
+  })
+  return parseTelegramResponse<TelegramMessage>(res)
 }
 
 export function getMe(token: string): Promise<TelegramResponse<TelegramUser>> {
