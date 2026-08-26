@@ -1,5 +1,3 @@
-# 📢 TelePost
-
 <p align="center">
   <img src="./TeleBot.png" alt="TelePost" width="850" />
 </p>
