@@ -5,8 +5,8 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "production"
-APP_URL = "https://telepost.app"
-CORS_ORIGINS = "https://telepost.app,https://telegrampost.vercel.app"
+APP_URL = "https://telegrampost.vercel.app"
+CORS_ORIGINS = "https://telegrampost.vercel.app"
 
 [[d1_databases]]
 binding = "DB"
