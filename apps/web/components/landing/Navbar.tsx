@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import styled, { css } from "styled-components";
 import Link from "next/link";
 import { Send } from "lucide-react";
+import { useMe } from "@/hooks/useAuth";
 
 // ----- Navbar Container (glass on scroll) -----
 const Nav = styled.nav<{ $scrolled: boolean }>`
@@ -171,6 +172,9 @@ const TelegramIcon = () => (
 // ============================================
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
+  // Session-aware CTA: logged-in visitors get a direct link to the dashboard
+  // instead of the Telegram login screen (/login itself redirects them too).
+  const { data: user } = useMe();
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 20);
@@ -195,9 +199,9 @@ export default function Navbar() {
           <NavLink href="#faq">FAQ</NavLink>
         </NavLinks>
 
-        <LoginLink href="/login" id="navbar-login-btn">
+        <LoginLink href={user ? '/dashboard' : '/login'} id="navbar-login-btn">
           <TelegramIcon />
-          Login with Telegram
+          {user ? 'Open Dashboard' : 'Login with Telegram'}
         </LoginLink>
       </Inner>
     </Nav>

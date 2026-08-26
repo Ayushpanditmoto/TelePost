@@ -5,6 +5,7 @@ import styled from 'styled-components'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
+import AuthGuard from '@/components/auth/AuthGuard'
 import TelegramLoginButton from '@/components/auth/TelegramLoginButton'
 import { api } from '@/lib/api'
 
@@ -142,38 +143,40 @@ export default function LoginPage() {
   }
 
   return (
-    <Page>
-      <Card>
-        <Logo href="/">
-          <LogoIcon>✈</LogoIcon>
-          TelePost
-        </Logo>
-        <Title>Log in to TelePost</Title>
-        <Subtitle>
-          Sign in with Telegram to schedule posts for your channels. No bot
-          setup needed — just add <b>@Panditfxbot</b> as an admin.
-        </Subtitle>
+    <AuthGuard>
+      <Page>
+        <Card>
+          <Logo href="/">
+            <LogoIcon>✈</LogoIcon>
+            TelePost
+          </Logo>
+          <Title>Log in to TelePost</Title>
+          <Subtitle>
+            Sign in with Telegram to schedule posts for your channels. No bot
+            setup needed — just add <b>@Panditfxbot</b> as an admin.
+          </Subtitle>
 
-        <TelegramLoginButton />
+          <TelegramLoginButton />
 
-        {DEV_LOGIN_ENABLED && (
-          <>
-            <Divider />
-            <DevForm onSubmit={devLogin}>
-              <DevInput
-                placeholder="Dev username (optional)"
-                value={devUsername}
-                onChange={(e) => setDevUsername(e.target.value)}
-                aria-label="Dev username"
-              />
-              <DevButton type="submit" disabled={busy} id="dev-login-btn">
-                {busy ? 'Signing in…' : '🛠 Dev login (local only)'}
-              </DevButton>
-              {error && <ErrorText>{error}</ErrorText>}
-            </DevForm>
-          </>
-        )}
-      </Card>
-    </Page>
+          {DEV_LOGIN_ENABLED && (
+            <>
+              <Divider />
+              <DevForm onSubmit={devLogin}>
+                <DevInput
+                  placeholder="Dev username (optional)"
+                  value={devUsername}
+                  onChange={(e) => setDevUsername(e.target.value)}
+                  aria-label="Dev username"
+                />
+                <DevButton type="submit" disabled={busy} id="dev-login-btn">
+                  {busy ? 'Signing in…' : '🛠 Dev login (local only)'}
+                </DevButton>
+                {error && <ErrorText>{error}</ErrorText>}
+              </DevForm>
+            </>
+          )}
+        </Card>
+      </Page>
+    </AuthGuard>
   )
 }
