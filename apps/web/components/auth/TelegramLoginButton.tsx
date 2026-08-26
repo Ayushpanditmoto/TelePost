@@ -78,10 +78,17 @@ export default function TelegramLoginButton() {
     }
   }, [handleAuth])
 
+  const devMode = process.env.NEXT_PUBLIC_DEV_LOGIN === 'true'
+
   return (
     <Wrap>
       {BOT_USERNAME ? (
         <WidgetSlot ref={slotRef} id="telegram-widget-slot" />
+      ) : devMode ? (
+        <p style={{ color: '#708499', fontSize: 12 }}>
+          Real Telegram login needs a deployed domain (BotFather /setdomain) —
+          use local Dev Login below.
+        </p>
       ) : (
         <p style={{ color: '#a8b8c8', fontSize: 13 }}>
           Telegram login is not configured — set NEXT_PUBLIC_TELEGRAM_BOT_USERNAME.

@@ -1,4 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TelePost — Web App
+
+## Local development
+
+Run both apps from the repo root:
+
+```bash
+# 1. Worker (auto-loads apps/worker/.dev.vars for secrets)
+cd apps/worker && npx wrangler dev          # → http://localhost:8787
+
+# 2. Web
+cd apps/web && npm run dev                  # → http://localhost:3000
+```
+
+### Environment
+
+Copy `.env.example` to `.env.local` and adjust:
+
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_API_URL` | Worker base URL (`http://localhost:8787`) |
+| `NEXT_PUBLIC_DEV_LOGIN` | `true` shows the local-only Dev Login button |
+| `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` | Bot username (no `@`) — required for the real Telegram Login Widget |
+
+Worker secrets live in `apps/worker/.dev.vars` (gitignored): `TELEGRAM_BOT_TOKEN`,
+`SESSION_SECRET`, `TOKEN_ENCRYPTION_KEY`.
+
+### Logging in
+
+- **Local dev:** use the **Dev login** button on `/login` (no Telegram account or
+  bot domain needed). It only exists while the worker runs with
+  `ENVIRONMENT != production`.
+- **Real Telegram login:** create a bot with [@BotFather](https://t.me/BotFather),
+  run `/setdomain` with your deployed domain, set
+  `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME`, then deploy.
+  The widget cannot run on `localhost` — Telegram requires a registered domain.
+
+This is a [Next.js](https://nextjs.org) app bootstrapped with
+[`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+
 
 ## Getting Started
 
