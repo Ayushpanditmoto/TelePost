@@ -47,3 +47,50 @@ export async function callTelegram<T>(
 export function getMe(token: string): Promise<TelegramResponse<TelegramUser>> {
   return callTelegram<TelegramUser>(token, 'getMe')
 }
+
+export interface TelegramChat {
+  id: number
+  type: 'private' | 'group' | 'supergroup' | 'channel'
+  title?: string
+  username?: string
+}
+
+export function getChat(token: string, chatId: string): Promise<TelegramResponse<TelegramChat>> {
+  return callTelegram<TelegramChat>(token, 'getChat', { chat_id: chatId })
+}
+
+export interface TelegramChatMember {
+  status: 'creator' | 'administrator' | 'member' | 'restricted' | 'left' | 'kicked'
+  user?: { id: number }
+}
+
+export function getChatMember(
+  token: string,
+  chatId: string,
+  userId: number
+): Promise<TelegramResponse<TelegramChatMember>> {
+  return callTelegram<TelegramChatMember>(token, 'getChatMember', {
+    chat_id: chatId,
+    user_id: userId,
+  })
+}
+
+export interface TelegramMessage {
+  message_id: number
+  chat: { id: number }
+  text?: string
+}
+
+export function sendMessage(
+  token: string,
+  chatId: string,
+  text: string,
+  opts: Record<string, unknown> = {}
+): Promise<TelegramResponse<TelegramMessage>> {
+  return callTelegram<TelegramMessage>(token, 'sendMessage', {
+    chat_id: chatId,
+    text,
+    disable_web_page_preview: true,
+    ...opts,
+  })
+}
