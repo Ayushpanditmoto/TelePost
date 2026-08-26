@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { and, desc, eq, inArray } from 'drizzle-orm'
-import { createDb } from '../db'
+import { createDb, type Db } from '../db'
 import { postMedia, posts, telegramChannels } from '@telepost/db'
 import type { HonoEnv, SessionUser } from '../types'
 import type { Context } from 'hono'
@@ -106,6 +106,54 @@ async function scheduleCapOk(
   return { ok: true as const }
 }
 
+// ─── Media metadata ──────────────────────────────────────────────────────────
+// Attachments themselves stream through GET /api/media/:mediaId (auth-checked);
+// post payloads only carry the descriptors needed to render them.
+
+export interface PublicMediaDescriptor {
+  id: string
+  mimeType: string
+  fileSizeBytes: number
+}
+
+type PublicPostWithMedia = ReturnType<typeof toPublicPost> & {
+  media: PublicMediaDescriptor[]
+}
+
+async function withMedia(db: Db, rows: PostRow[]): Promise<PublicPostWithMedia[]> {
+  if (rows.length === 0) return []
+
+  // Chunk to stay well under D1's bound-parameter limit on long lists.
+  const idChunks: string[][] = []
+  for (let i = 0; i < rows.length; i += 90) {
+    idChunks.push(rows.slice(i, i + 90).map((r) => r.id))
+  }
+
+  const mediaRows = (
+    await Promise.all(
+      idChunks.map((chunk) =>
+        db.select().from(postMedia).where(inArray(postMedia.postId, chunk))
+      )
+    )
+  ).flat()
+
+  const byPost = new Map<string, PublicMediaDescriptor[]>()
+  for (const m of mediaRows) {
+    const list = byPost.get(m.postId) ?? []
+    list.push({
+      id: m.id,
+      mimeType: m.mimeType,
+      fileSizeBytes: m.fileSizeBytes,
+    })
+    byPost.set(m.postId, list)
+  }
+
+  return rows.map((row) => ({
+    ...toPublicPost(row),
+    media: byPost.get(row.id) ?? [],
+  }))
+}
+
 // GET /api/posts — list posts (?channelId=&status=)
 postRoutes.get('/', async (c) => {
   const user = await requireAuth(c)
@@ -124,7 +172,7 @@ postRoutes.get('/', async (c) => {
     .where(and(...conditions))
     .orderBy(desc(posts.createdAt))
 
-  return c.json({ posts: rows.map(toPublicPost) })
+  return c.json({ posts: await withMedia(db, rows) })
 })
 
 // POST /api/posts — create a draft, a scheduled post, or a recurring series
@@ -256,7 +304,8 @@ postRoutes.get('/:id', async (c) => {
   const check = await ownedPostOrError(c, user, c.req.param('id'))
   if (!check.ok) return c.json({ error: check.error }, check.status)
 
-  return c.json({ post: toPublicPost(check.post) })
+  const [withAttachments] = await withMedia(check.db, [check.post])
+  return c.json({ post: withAttachments ?? toPublicPost(check.post) })
 })
 
 // PATCH /api/posts/:id — edit content (draft/scheduled/failed) and/or

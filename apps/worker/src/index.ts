@@ -6,6 +6,7 @@ import { authRoutes } from './routes/auth'
 import { webhookRoutes } from './routes/bot'
 import { channelRoutes } from './routes/channels'
 import { postRoutes } from './routes/posts'
+import { mediaRoutes } from './routes/media'
 import { planRoutes } from './routes/plans'
 import { adminRoutes } from './routes/admin'
 import { sessionMiddleware } from './lib/auth'
@@ -64,6 +65,7 @@ app.route('/api/auth', authRoutes)
 app.route('/api/bot', webhookRoutes)
 app.route('/api/channels', channelRoutes)
 app.route('/api/posts', postRoutes)
+app.route('/api/media', mediaRoutes)
 app.route('/api/plans', planRoutes)
 app.route('/api/admin', adminRoutes)
 

@@ -3,7 +3,7 @@
 import React from "react";
 import styled, { keyframes } from "styled-components";
 import { useDashboardStore } from "@/store/dashboardStore";
-import type { Post } from "@/hooks/usePosts";
+import { postMediaUrl, type Post } from "@/hooks/usePosts";
 import { formatPostTime } from "@/lib/mockData";
 
 const cardIn = keyframes`
@@ -15,39 +15,74 @@ const spin = keyframes`
   to { transform: rotate(360deg); }
 `;
 
-const Card = styled.article<{ $selected: boolean; $status: string }>`
+// ─── Telegram-style chat bubble ──────────────────────────────────────────────
+const Card = styled.article<{ $selected: boolean; $hasMedia: boolean }>`
+  align-self: flex-start;
+  width: fit-content;
+  max-width: min(76%, 480px);
+  margin: 2px 14px;
   background: ${({ $selected, theme }) =>
     $selected ? theme.colors.bg.messageSelected : theme.colors.bg.message};
-  border-radius: ${({ theme }) => theme.radius.md};
-  padding: 10px 14px 8px;
-  margin: 2px 12px;
+  /* One tight corner mimics the Telegram message tail. */
+  border-radius: 16px;
+  border-bottom-left-radius: 5px;
+  overflow: hidden;
   cursor: pointer;
-  border: 1px solid
-    ${({ $selected, theme }) =>
-      $selected ? theme.colors.border.accent : "transparent"};
+  border: 1px solid transparent;
   opacity: 0;
   animation: ${cardIn} 0.25s ease both;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
   transition:
     background ${({ theme }) => theme.transition.fast},
     border-color ${({ theme }) => theme.transition.fast},
     box-shadow ${({ theme }) => theme.transition.fast},
     transform ${({ theme }) => theme.transition.fast};
-  position: relative;
 
   &:hover {
     background: ${({ $selected, theme }) =>
       $selected
         ? theme.colors.bg.messageSelected
         : theme.colors.bg.messageHover};
-    transform: translateX(3px) scale(1.005);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
   }
 
   ${({ $selected, theme }) =>
     $selected
-      ? `box-shadow: 0 0 0 1px ${theme.colors.border.accent}, 0 4px 14px rgba(33, 150, 243, 0.15);`
+      ? `border-color: ${theme.colors.border.accent};
+         box-shadow: 0 0 0 1px ${theme.colors.border.accent}, 0 4px 16px rgba(33, 150, 243, 0.18);`
       : ""}
 `;
+
+const MediaGrid = styled.div<{ $count: number }>`
+  display: grid;
+  grid-template-columns: ${({ $count }) => ($count > 1 ? 'repeat(2, 1fr)' : '1fr')};
+  gap: 2px;
+  background: ${({ theme }) => theme.colors.bg.tertiary};
+
+  img,
+  video {
+    display: block;
+    width: 100%;
+    max-height: 300px;
+    object-fit: cover;
+    background: ${({ theme }) => theme.colors.bg.tertiary};
+  }
+`;
+
+const UnsupportedFile = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  font-size: ${({ theme }) => theme.font.size.sm};
+  color: ${({ theme }) => theme.colors.text.secondary};
+`;
+
+const Caption = styled.div<{ $bare: boolean }>`
+  padding: ${({ $bare }) => ($bare ? '6px 12px 4px' : '10px 12px 4px')};
+`;
+
 
 
 const Content = styled.p`
@@ -143,6 +178,9 @@ interface MessageCardProps {
 export default function MessageCard({ post }: MessageCardProps) {
   const { selectedPostId, setSelectedPostId } = useDashboardStore();
   const isSelected = selectedPostId === post.id;
+  const media = post.media ?? [];
+  const hasMedia = media.length > 0;
+  const hasText = post.content.trim().length > 0;
 
   const handleClick = () => {
     if (isSelected) {
@@ -155,28 +193,63 @@ export default function MessageCard({ post }: MessageCardProps) {
   return (
     <Card
       $selected={isSelected}
-      $status={post.status}
+      $hasMedia={hasMedia}
       onClick={handleClick}
       id={`message-card-${post.id}`}
     >
-      <Content>{post.content}</Content>
+      {hasMedia && (
+        <MediaGrid $count={Math.min(media.length, 4)}>
+          {media.slice(0, 4).map((m) => {
+            if (m.mimeType.startsWith("image/")) {
+              // Auth-cookie stream from our API; next/image cannot optimize
+              // credentialed same-session endpoints, so raw <img> is intended.
+              return (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={m.id}
+                  src={postMediaUrl(m.id)}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  draggable={false}
+                />
+              );
+            }
+            if (m.mimeType.startsWith("video/")) {
+              return (
+                <video
+                  key={m.id}
+                  src={postMediaUrl(m.id)}
+                  controls
+                  preload="metadata"
+                />
+              );
+            }
+            return <UnsupportedFile key={m.id}>📎 Unsupported file</UnsupportedFile>;
+          })}
+        </MediaGrid>
+      )}
 
-      <Meta>
-        <StatusBadge $status={post.status}>
-          {post.status === "publishing" ? (
-            <>
-              <PublishingGlyph>⟳</PublishingGlyph> Publishing
-            </>
-          ) : (
-            (STATUS_LABELS[post.status] ?? post.status)
-          )}
-        </StatusBadge>
-        <Timestamp
-          dateTime={post.scheduledAt ?? post.publishedAt ?? post.createdAt}
-        >
-          {formatPostTime(post)}
-        </Timestamp>
-      </Meta>
+      <Caption $bare={hasMedia && hasText}>
+        {hasText && <Content>{post.content}</Content>}
+
+        <Meta>
+          <StatusBadge $status={post.status}>
+            {post.status === "publishing" ? (
+              <>
+                <PublishingGlyph>⟳</PublishingGlyph> Publishing
+              </>
+            ) : (
+              (STATUS_LABELS[post.status] ?? post.status)
+            )}
+          </StatusBadge>
+          <Timestamp
+            dateTime={post.scheduledAt ?? post.publishedAt ?? post.createdAt}
+          >
+            {formatPostTime(post)}
+          </Timestamp>
+        </Meta>
+      </Caption>
     </Card>
   );
 }

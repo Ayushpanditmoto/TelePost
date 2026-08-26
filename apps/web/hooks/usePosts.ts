@@ -1,7 +1,7 @@
 'use client'
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/lib/api'
+import { api, API_URL } from '@/lib/api'
 
 export type PostStatus =
   | 'draft'
@@ -23,8 +23,16 @@ export interface Post {
   telegramMessageId: number | null
   /** Shared by all upcoming occurrences of a recurring schedule. */
   seriesId?: string | null
+  /** Attachments (metadata only; bytes stream from /api/media/:id). */
+  media?: PostMediaInfo[]
   createdAt: string
   updatedAt: string
+}
+
+export interface PostMediaInfo {
+  id: string
+  mimeType: string
+  fileSizeBytes: number
 }
 
 interface PostsResponse {
@@ -140,4 +148,10 @@ export function useReschedulePost() {
       }),
     onSuccess: () => invalidatePosts(queryClient),
   })
+}
+
+// Auth-checked stream URL for a post attachment — drop straight into
+// <img src> / <video src>; the session cookie authorizes the fetch.
+export function postMediaUrl(mediaId: string): string {
+  return `${API_URL}/api/media/${encodeURIComponent(mediaId)}`
 }
