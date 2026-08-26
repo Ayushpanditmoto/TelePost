@@ -129,8 +129,11 @@ interface Props {
   onClose: () => void
 }
 
+type Mode = 'public' | 'private'
+
 export default function AddChannelDialog({ open, onClose }: Props) {
   const [chatId, setChatId] = useState('')
+  const [mode, setMode] = useState<Mode>('public')
   const connect = useConnectChannel()
 
   if (!open) return null
@@ -155,29 +158,68 @@ export default function AddChannelDialog({ open, onClose }: Props) {
           don&apos;t need your own bot.
         </Subtitle>
 
-        <Steps>
-          <li>
-            Open Telegram → your channel → <b>Manage Channel</b>.
-          </li>
-          <li>
-            Go to <b>Administrators</b> → <b>Add Admin</b> → search for{' '}
-            <BotName>{PLATFORM_BOT}</BotName> and add it as an admin.
-          </li>
-          <li>
-            Paste your channel&apos;s <b>@username</b> below.
-          </li>
-        </Steps>
+        <ModeToggle>
+          <ModeBtn $active={mode === 'public'} onClick={() => setMode('public')}>
+            🌐 Public channel
+          </ModeBtn>
+          <ModeBtn
+            $active={mode === 'private'}
+            onClick={() => setMode('private')}
+          >
+            🔒 Private channel
+          </ModeBtn>
+        </ModeToggle>
 
-        <Input
-          placeholder="@mychannel"
-          value={chatId}
-          onChange={(e) => setChatId(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-          autoFocus
-          id="channel-chat-id-input"
-        />
+        {mode === 'public' ? (
+          <>
+            <Steps>
+              <li>
+                Open Telegram → your channel → <b>Manage Channel</b>.
+              </li>
+              <li>
+                Go to <b>Administrators</b> → <b>Add Admin</b> → search for{' '}
+                <BotName>{PLATFORM_BOT}</BotName> and add it as an admin.
+              </li>
+              <li>
+                Paste your channel&apos;s <b>@username</b> (or numeric{' '}
+                <b>-100…</b> ID) below.
+              </li>
+            </Steps>
 
-        {connect.isError && (
+            <Input
+              placeholder="@mychannel"
+              value={chatId}
+              onChange={(e) => setChatId(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+              autoFocus
+              id="channel-chat-id-input"
+            />
+          </>
+        ) : (
+          <>
+            <Steps>
+              <li>
+                Open Telegram → your channel → <b>Manage Channel</b> →{' '}
+                <b>Administrators</b> → add <BotName>{PLATFORM_BOT}</BotName>{' '}
+                as an admin.
+              </li>
+              <li>
+                Forward <b>any post</b> from that channel here in this bot&apos;s
+                chat.
+              </li>
+              <li>
+                Done — the channel connects automatically and appears on your
+                dashboard.
+              </li>
+            </Steps>
+            <PrivateNote id="channel-private-note">
+              No ID needed. We detect the channel from the forwarded message —
+              private channels never expose a @username.
+            </PrivateNote>
+          </>
+        )}
+
+        {connect.isError && mode === 'public' && (
           <Error>
             {connect.error instanceof Error
               ? connect.error.message
@@ -189,19 +231,63 @@ export default function AddChannelDialog({ open, onClose }: Props) {
           <CancelBtn onClick={onClose} disabled={connect.isPending}>
             Cancel
           </CancelBtn>
-          <ConnectBtn
-            $disabled={!chatId.trim() || connect.isPending}
-            onClick={handleSubmit}
-            id="channel-connect-btn"
-          >
-            {connect.isPending && <Spinner />}
-            {connect.isPending ? 'Connecting…' : 'Connect Channel'}
-          </ConnectBtn>
+          {mode === 'public' ? (
+            <ConnectBtn
+              $disabled={!chatId.trim() || connect.isPending}
+              onClick={handleSubmit}
+              id="channel-connect-btn"
+            >
+              {connect.isPending && <Spinner />}
+              {connect.isPending ? 'Connecting…' : 'Connect Channel'}
+            </ConnectBtn>
+          ) : (
+            <ConnectBtn
+              $disabled
+              onClick={() => window.open('https://t.me/Panditfxbot')}
+              id="channel-open-bot-btn"
+            >
+              Open @{PLATFORM_BOT.replace('@', '')} ↗
+            </ConnectBtn>
+          )}
         </Actions>
       </Dialog>
     </Overlay>
   )
 }
+
+const ModeToggle = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.sm};
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+`
+
+const ModeBtn = styled.button<{ $active: boolean }>`
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  border: 1px solid
+    ${({ $active, theme }) =>
+      $active ? theme.colors.border.accent : theme.colors.border.default};
+  background: ${({ $active, theme }) =>
+    $active ? theme.colors.accentMuted : 'transparent'};
+  color: ${({ $active, theme }) =>
+    $active ? theme.colors.text.accent : theme.colors.text.secondary};
+  font-size: ${({ theme }) => theme.font.size.xs};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  transition: all ${({ theme }) => theme.transition.fast};
+
+  &:hover {
+    border-color: ${({ theme }) => theme.colors.border.accent};
+  }
+`
+
+const PrivateNote = styled.p`
+  font-size: ${({ theme }) => theme.font.size.xs};
+  color: ${({ theme }) => theme.colors.text.muted};
+  line-height: ${({ theme }) => theme.font.lineHeight.normal};
+  margin-bottom: ${({ theme }) => theme.spacing.sm};
+`
+
 const Spinner = styled.div`
   width: 14px;
   height: 14px;
