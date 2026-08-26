@@ -1,7 +1,6 @@
 export interface Env {
   DB: D1Database
   MEDIA_BUCKET: R2Bucket
-  POST_QUEUE: Queue
   ENVIRONMENT: string
   /** Primary web app origin used for CORS, e.g. https://telepost.app */
   APP_URL: string

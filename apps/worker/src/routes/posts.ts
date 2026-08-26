@@ -6,7 +6,8 @@ import type { HonoEnv, SessionUser } from '../types'
 import type { Context } from 'hono'
 import { requireAuth } from '../lib/auth'
 import { countUserScheduledPosts, getUserPlan } from '../lib/planLimits'
-import { enqueuePostForPublish } from '../lib/publish'
+import { claimPostForPublish } from '../lib/publish'
+import { processPublishMessage } from '../lib/publisher'
 import { MAX_MEDIA_SIZE_BYTES, uploadPostMedia } from '../lib/media'
 
 export const postRoutes = new Hono<HonoEnv>()
@@ -258,10 +259,15 @@ postRoutes.post('/:id/publish', async (c) => {
     return c.json({ error: `Cannot publish a ${post.status} post` }, 409)
   }
 
-  const queued = await enqueuePostForPublish(c.env, post.id)
-  if (!queued) return c.json({ error: 'Failed to queue post' }, 500)
+  const claimed = await claimPostForPublish(c.env, post.id)
+  if (!claimed) return c.json({ error: 'Failed to queue post' }, 500)
 
-  return c.json({ queued: true, idempotencyKey: queued })
+  // Deliver directly (free plan, no Queues): run after the response is sent.
+  c.executionCtx.waitUntil(
+    processPublishMessage(c.env, claimed).catch(() => undefined)
+  )
+
+  return c.json({ queued: true, idempotencyKey: claimed.idempotencyKey })
 })
 
 // POST /api/posts/:id/schedule — schedule a draft for a future time.

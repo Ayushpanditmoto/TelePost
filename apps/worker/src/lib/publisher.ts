@@ -10,7 +10,7 @@ import {
   type TelegramResponse,
   type TelegramMessage,
 } from './telegram'
-import type { PublishQueueMessage } from './publish'
+import type { PublishClaim } from './publish'
 
 // Telegram error codes worth retrying (transient) vs permanent rejections.
 const TRANSIENT_ERROR_CODES = new Set([429, 500, 502, 503, 504])
@@ -40,7 +40,7 @@ async function markFailed(
  */
 export async function processPublishMessage(
   env: Env,
-  msg: PublishQueueMessage
+  msg: PublishClaim
 ): Promise<PublishDisposition> {
   const db = createDb(env.DB)
 

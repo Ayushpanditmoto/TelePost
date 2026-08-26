@@ -11,7 +11,7 @@ import { adminRoutes } from './routes/admin'
 import { sessionMiddleware } from './lib/auth'
 import { createDb } from './db'
 import { posts } from '@telepost/db'
-import { enqueuePostForPublish, type PublishQueueMessage } from './lib/publish'
+import { claimPostForPublish, type PublishClaim } from './lib/publish'
 import { processPublishMessage } from './lib/publisher'
 import type { Env } from './types'
 
@@ -57,14 +57,14 @@ app.route('/api/posts', postRoutes)
 app.route('/api/plans', planRoutes)
 app.route('/api/admin', adminRoutes)
 
-// Scheduled cron handler: find due posts and enqueue them for publishing.
+// Scheduled cron handler: find due posts and deliver them directly.
 export default {
   fetch: app.fetch,
 
   async scheduled(
     _event: ScheduledEvent,
     env: Env,
-    _ctx: ExecutionContext
+    ctx: ExecutionContext
   ): Promise<void> {
     const db = createDb(env.DB)
     const now = new Date().toISOString()
@@ -75,41 +75,15 @@ export default {
       .where(and(eq(posts.status, 'scheduled'), lte(posts.scheduledAt, now)))
       .limit(25)
 
-    let queued = 0
+    let dispatched = 0
     for (const post of due) {
-      const key = await enqueuePostForPublish(env, post.id)
-      if (key) queued++
+      const claimed: PublishClaim | null = await claimPostForPublish(env, post.id)
+      if (!claimed) continue
+      dispatched++
+      // Free plan: no Queues — run delivery within the cron invocation.
+      ctx.waitUntil(processPublishMessage(env, claimed).catch(() => undefined))
     }
 
-    console.log(`[CRON] ${queued}/${due.length} due posts enqueued`)
-  },
-
-  async queue(
-    batch: MessageBatch<unknown>,
-    env: Env,
-    _ctx: ExecutionContext
-  ): Promise<void> {
-    console.log(`[QUEUE] Processing ${batch.messages.length} messages`)
-
-    for (const message of batch.messages) {
-      const body = message.body as PublishQueueMessage
-
-      // Defensive shape check — skip malformed payloads rather than crash-looping.
-      if (typeof body?.postId !== 'string' || typeof body?.idempotencyKey !== 'string') {
-        console.error('[QUEUE] Malformed message, acking:', JSON.stringify(body))
-        message.ack()
-        continue
-      }
-
-      try {
-        const disposition = await processPublishMessage(env, body)
-        console.log(`[QUEUE] ${body.postId}: ${disposition}`)
-        message.ack()
-      } catch (err) {
-        // Unexpected error — let the queue retry the message itself.
-        console.error(`[QUEUE] Unexpected failure for ${body.postId}:`, err)
-        message.retry({ delaySeconds: 30 })
-      }
-    }
+    console.log(`[CRON] ${dispatched}/${due.length} due posts dispatched`)
   },
 }

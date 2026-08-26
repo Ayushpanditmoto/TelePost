@@ -16,14 +16,5 @@ database_id = "YOUR_D1_DATABASE_ID"
 binding = "MEDIA_BUCKET"
 bucket_name = "telepost-media"
 
-[[queues.producers]]
-binding = "POST_QUEUE"
-queue = "telepost-post-queue"
-
-[[queues.consumers]]
-queue = "telepost-post-queue"
-max_batch_size = 10
-max_batch_timeout = 30
-
 [triggers]
 crons = ["* * * * *"]
