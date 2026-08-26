@@ -24,7 +24,8 @@ interface DashboardStore {
 }
 
 export const useDashboardStore = create<DashboardStore>((set) => ({
-  selectedChannelId: 'channel_1',
+  // null → no real channel selected yet; LeftPanel auto-selects the first one.
+  selectedChannelId: null,
   setSelectedChannelId: (id) => set({ selectedChannelId: id }),
 
   selectedPostId: null,

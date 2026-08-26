@@ -3,7 +3,7 @@
 import React from 'react'
 import styled from 'styled-components'
 import { useDashboardStore } from '@/store/dashboardStore'
-import type { MockPost } from '@/lib/mockData'
+import type { Post } from '@/hooks/usePosts'
 import { formatPostTime } from '@/lib/mockData'
 
 const Card = styled.article<{ $selected: boolean; $status: string }>`
@@ -130,7 +130,7 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 interface MessageCardProps {
-  post: MockPost
+  post: Post
 }
 
 export default function MessageCard({ post }: MessageCardProps) {
@@ -152,12 +152,6 @@ export default function MessageCard({ post }: MessageCardProps) {
       onClick={handleClick}
       id={`message-card-${post.id}`}
     >
-      {post.hasMedia && (
-        <MediaPlaceholder>
-          {post.mediaType === 'video' ? '🎬' : '🖼️'}
-        </MediaPlaceholder>
-      )}
-
       <Content>{post.content}</Content>
 
       <Meta>

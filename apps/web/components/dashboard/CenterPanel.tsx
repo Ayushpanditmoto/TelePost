@@ -3,8 +3,8 @@
 import React from 'react'
 import styled from 'styled-components'
 import { useDashboardStore } from '@/store/dashboardStore'
-import { MOCK_POSTS } from '@/lib/mockData'
 import { useChannels } from '@/hooks/useChannels'
+import { usePosts } from '@/hooks/usePosts'
 import MessageCard from './MessageCard'
 import MessageComposer from './MessageComposer'
 
@@ -197,15 +197,16 @@ const FILTERS = [
 export default function CenterPanel() {
   const { selectedChannelId } = useDashboardStore()
   const { data: channels = [] } = useChannels()
+  const { data: allPosts = [], isLoading: postsLoading } = usePosts(
+    selectedChannelId
+  )
   const [activeFilter, setActiveFilter] = React.useState('all')
 
   const channel = channels.find((c) => c.id === selectedChannelId)
   const channelIndex = channels.findIndex((c) => c.id === selectedChannelId)
 
-  const posts = MOCK_POSTS.filter(
-    (p) =>
-      p.channelId === selectedChannelId &&
-      (activeFilter === 'all' || p.status === activeFilter)
+  const posts = allPosts.filter(
+    (p) => activeFilter === 'all' || p.status === activeFilter
   )
 
   return (
@@ -247,7 +248,12 @@ export default function CenterPanel() {
       </FilterBar>
 
       <Feed id="message-feed">
-        {posts.length > 0 ? (
+        {postsLoading ? (
+          <EmptyState>
+            <EmptyIcon>⏳</EmptyIcon>
+            <EmptyTitle>Loading…</EmptyTitle>
+          </EmptyState>
+        ) : posts.length > 0 ? (
           <>
             <DateSeparator>
               <DateLine />

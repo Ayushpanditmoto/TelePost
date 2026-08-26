@@ -1,10 +1,19 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import styled, { keyframes } from 'styled-components'
+import { useQuery } from '@tanstack/react-query'
 import { useDashboardStore } from '@/store/dashboardStore'
-import { MOCK_POSTS, formatPostDate } from '@/lib/mockData'
+import { api } from '@/lib/api'
+import { formatPostDate } from '@/lib/mockData'
 import { useChannels } from '@/hooks/useChannels'
+import {
+  type Post,
+  useCancelPost,
+  useDeletePost,
+  usePublishPost,
+  useReschedulePost,
+} from '@/hooks/usePosts'
 
 const slideIn = keyframes`
   from { transform: translateX(100%); opacity: 0; }
@@ -133,16 +142,26 @@ const ErrorBox = styled.div`
   line-height: ${({ theme }) => theme.font.lineHeight.relaxed};
 `
 
-const MediaPreview = styled.div`
-  width: 100%;
-  height: 120px;
-  border-radius: ${({ theme }) => theme.radius.sm};
-  background: ${({ theme }) => theme.colors.bg.tertiary};
+const RescheduleRow = styled.div`
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  color: ${({ theme }) => theme.colors.text.muted};
+  gap: ${({ theme }) => theme.spacing.sm};
+`
+
+const RescheduleInput = styled.input`
+  flex: 1;
+  padding: 8px 10px;
+  background: ${({ theme }) => theme.colors.bg.input};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  color: ${({ theme }) => theme.colors.text.primary};
+  font-size: ${({ theme }) => theme.font.size.sm};
+  outline: none;
+  color-scheme: dark;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.border.accent};
+  }
 `
 
 const ActionsSection = styled.div`
@@ -154,7 +173,7 @@ const ActionsSection = styled.div`
   flex-shrink: 0;
 `
 
-const PrimaryAction = styled.button`
+const PrimaryAction = styled.button<{ $disabled?: boolean }>`
   width: 100%;
   padding: 10px;
   border-radius: ${({ theme }) => theme.radius.sm};
@@ -164,14 +183,19 @@ const PrimaryAction = styled.button`
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   transition: all ${({ theme }) => theme.transition.fast};
 
-  &:hover {
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
+  &:hover:not(:disabled) {
     background: ${({ theme }) => theme.colors.accentHover};
     transform: translateY(-1px);
     box-shadow: ${({ theme }) => theme.shadow.glow};
   }
 `
 
-const SecondaryAction = styled.button`
+const SecondaryAction = styled.button<{ $disabled?: boolean }>`
   width: 100%;
   padding: 10px;
   border-radius: ${({ theme }) => theme.radius.sm};
@@ -181,7 +205,12 @@ const SecondaryAction = styled.button`
   font-weight: ${({ theme }) => theme.font.weight.medium};
   transition: all ${({ theme }) => theme.transition.fast};
 
-  &:hover {
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  &:hover:not(:disabled) {
     border-color: ${({ theme }) => theme.colors.border.accent};
     color: ${({ theme }) => theme.colors.text.primary};
     background: ${({ theme }) => theme.colors.accentMuted};
@@ -205,10 +234,31 @@ const DangerAction = styled.button`
 `
 
 export default function RightPanel() {
-  const { selectedPostId, clearSelectedPost } = useDashboardStore()
+  const { selectedPostId, setSelectedPostId, clearSelectedPost } =
+    useDashboardStore()
   const { data: channels = [] } = useChannels()
+  const publishPost = usePublishPost()
+  const cancelPost = useCancelPost()
+  const deletePost = useDeletePost()
+  const reschedulePost = useReschedulePost()
+  const [showReschedule, setShowReschedule] = useState(false)
+  const [newTime, setNewTime] = useState('')
+  const [actionError, setActionError] = useState<string | null>(null)
 
-  const post = MOCK_POSTS.find((p) => p.id === selectedPostId)
+  // Fetch the selected post fresh from the API.
+  const {
+    data: post,
+    isLoading,
+    isError,
+  } = useQuery<Post>({
+    queryKey: ['post', selectedPostId],
+    queryFn: async () => {
+      const data = await api<{ post: Post }>(`/api/posts/${selectedPostId}`)
+      return data.post
+    },
+    enabled: !!selectedPostId,
+  })
+
   const channel = channels.find((c) => c.id === post?.channelId)
 
   useEffect(() => {
@@ -219,7 +269,34 @@ export default function RightPanel() {
     return () => document.removeEventListener('keydown', handler)
   }, [clearSelectedPost])
 
-  if (!post) return null
+  if (!selectedPostId) return null
+  if (isLoading || isError || !post) {
+    return (
+      <Panel $open id="right-panel">
+        <PanelHeader>
+          <PanelTitle>Post Details</PanelTitle>
+          <CloseBtn onClick={clearSelectedPost} title="Close (Esc)">✕</CloseBtn>
+        </PanelHeader>
+        <ScrollArea>
+          <SectionValue>
+            {isError ? 'Could not load this post.' : 'Loading…'}
+          </SectionValue>
+        </ScrollArea>
+      </Panel>
+    )
+  }
+
+  const runAction = async (fn: () => Promise<unknown>) => {
+    setActionError(null)
+    try {
+      await fn()
+      if (deletePost.isSuccess) setSelectedPostId(null)
+      setShowReschedule(false)
+      setNewTime('')
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Action failed')
+    }
+  }
 
   const STATUS_LABELS: Record<string, string> = {
     scheduled: 'Scheduled',
@@ -253,16 +330,15 @@ export default function RightPanel() {
           <SectionValue>{post.content}</SectionValue>
         </Section>
 
-        {post.hasMedia && (
-          <Section>
-            <SectionTitle>Media</SectionTitle>
-            <MediaPreview>{post.mediaType === 'video' ? '🎬' : '🖼️'}</MediaPreview>
-          </Section>
-        )}
-
         <Section>
           <SectionTitle>Channel</SectionTitle>
-          <SectionValue>{channel?.username ?? '—'}</SectionValue>
+          <SectionValue>
+            {channel
+              ? channel.username
+                ? `@${channel.username}`
+                : channel.title
+              : '—'}
+          </SectionValue>
         </Section>
 
         {post.scheduledAt && (
@@ -303,34 +379,109 @@ export default function RightPanel() {
       </ScrollArea>
 
       <ActionsSection>
+        {actionError && (
+          <Section>
+            <ErrorBox>{actionError}</ErrorBox>
+          </Section>
+        )}
+        {showReschedule && (
+          <Section>
+            <SectionTitle>New time</SectionTitle>
+            <RescheduleRow>
+              <RescheduleInput
+                type="datetime-local"
+                value={newTime}
+                onChange={(e) => setNewTime(e.target.value)}
+              />
+              <SecondaryAction
+                onClick={() =>
+                  newTime &&
+                  runAction(() =>
+                    reschedulePost.mutateAsync({
+                      id: post.id,
+                      scheduledAt: new Date(newTime).toISOString(),
+                    })
+                  )
+                }
+                disabled={reschedulePost.isPending || !newTime}
+              >
+                Save
+              </SecondaryAction>
+            </RescheduleRow>
+          </Section>
+        )}
         {post.status === 'scheduled' && (
           <>
-            <PrimaryAction id="action-edit">✏️ Edit</PrimaryAction>
-            <SecondaryAction id="action-reschedule">📅 Reschedule</SecondaryAction>
-            <SecondaryAction id="action-post-now">⚡ Post Now</SecondaryAction>
-            <DangerAction id="action-cancel">Cancel Post</DangerAction>
+            <SecondaryAction
+              id="action-reschedule"
+              onClick={() => setShowReschedule((v) => !v)}
+            >
+              📅 Reschedule
+            </SecondaryAction>
+            <PrimaryAction
+              id="action-post-now"
+              onClick={() => runAction(() => publishPost.mutateAsync(post.id))}
+              disabled={publishPost.isPending}
+            >
+              ⚡ Post Now
+            </PrimaryAction>
+            <DangerAction
+              id="action-cancel"
+              onClick={() => runAction(() => cancelPost.mutateAsync(post.id))}
+              disabled={cancelPost.isPending}
+            >
+              Cancel Post
+            </DangerAction>
           </>
         )}
         {post.status === 'draft' && (
           <>
-            <PrimaryAction id="action-edit">✏️ Edit</PrimaryAction>
-            <SecondaryAction id="action-schedule">📅 Schedule</SecondaryAction>
-            <SecondaryAction id="action-post-now">⚡ Post Now</SecondaryAction>
-            <DangerAction id="action-delete">Delete</DangerAction>
+            <PrimaryAction
+              id="action-post-now"
+              onClick={() => runAction(() => publishPost.mutateAsync(post.id))}
+              disabled={publishPost.isPending}
+            >
+              ⚡ Post Now
+            </PrimaryAction>
+            <DangerAction
+              id="action-delete"
+              onClick={() => runAction(() => deletePost.mutateAsync(post.id))}
+              disabled={deletePost.isPending}
+            >
+              Delete
+            </DangerAction>
           </>
         )}
         {post.status === 'published' && (
-          <>
-            <SecondaryAction id="action-duplicate">⎘ Duplicate</SecondaryAction>
-            <DangerAction id="action-delete">Delete</DangerAction>
-          </>
+          <DangerAction
+            id="action-delete"
+            title="Published posts cannot be deleted via the API"
+          >
+            Delete
+          </DangerAction>
         )}
         {post.status === 'failed' && (
           <>
-            <PrimaryAction id="action-retry">↻ Retry</PrimaryAction>
-            <SecondaryAction id="action-reschedule">📅 Reschedule</SecondaryAction>
-            <SecondaryAction id="action-edit">✏️ Edit</SecondaryAction>
-            <DangerAction id="action-delete">Delete</DangerAction>
+            <PrimaryAction
+              id="action-retry"
+              onClick={() => runAction(() => publishPost.mutateAsync(post.id))}
+              disabled={publishPost.isPending}
+            >
+              ↻ Retry
+            </PrimaryAction>
+            <SecondaryAction
+              id="action-reschedule"
+              onClick={() => setShowReschedule((v) => !v)}
+            >
+              📅 Reschedule
+            </SecondaryAction>
+            <DangerAction
+              id="action-cancel"
+              onClick={() => runAction(() => cancelPost.mutateAsync(post.id))}
+              disabled={cancelPost.isPending}
+            >
+              Cancel Post
+            </DangerAction>
           </>
         )}
       </ActionsSection>

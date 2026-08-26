@@ -275,6 +275,13 @@ export default function LeftPanel() {
   const [loggingOut, setLoggingOut] = React.useState(false)
   const [showAddChannel, setShowAddChannel] = useState(false)
 
+  // Auto-select the first real channel once the list loads.
+  React.useEffect(() => {
+    if (!selectedChannelId && channels.length > 0 && channels[0]) {
+      setSelectedChannelId(channels[0].id)
+    }
+  }, [selectedChannelId, channels, setSelectedChannelId])
+
   const handleLogout = async () => {
     setLoggingOut(true)
     await logout()

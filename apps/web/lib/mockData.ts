@@ -118,7 +118,13 @@ export const MOCK_POSTS: MockPost[] = [
 ]
 
 
-export function formatPostTime(post: MockPost): string {
+export interface PostTimestamps {
+  scheduledAt: string | null
+  publishedAt: string | null
+  createdAt: string
+}
+
+export function formatPostTime(post: PostTimestamps): string {
   const date =
     post.publishedAt
       ? new Date(post.publishedAt)
@@ -133,7 +139,7 @@ export function formatPostTime(post: MockPost): string {
   })
 }
 
-export function formatPostDate(post: MockPost): string {
+export function formatPostDate(post: PostTimestamps): string {
   const date =
     post.scheduledAt
       ? new Date(post.scheduledAt)

@@ -3,6 +3,7 @@
 import React, { useState, useRef } from 'react'
 import styled, { keyframes } from 'styled-components'
 import { useDashboardStore } from '@/store/dashboardStore'
+import { useCreatePost, usePublishPost } from '@/hooks/usePosts'
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(8px); }
@@ -190,13 +191,15 @@ const SendNowBtn = styled.button`
   }
 `
 
-const ScheduleBtn = styled.button`
+const ScheduleBtn = styled.button<{ $active?: boolean }>`
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
   border-radius: ${({ theme }) => theme.radius.full};
-  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  border: 1px solid
+    ${({ $active, theme }) =>
+      $active ? theme.colors.border.accent : theme.colors.border.default};
   color: ${({ theme }) => theme.colors.text.secondary};
   font-size: ${({ theme }) => theme.font.size.sm};
   font-weight: ${({ theme }) => theme.font.weight.medium};
@@ -209,17 +212,101 @@ const ScheduleBtn = styled.button`
   }
 `
 
+const ScheduleRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.sm};
+  margin-top: ${({ theme }) => theme.spacing.sm};
+`
+
+const DateTimeInput = styled.input`
+  padding: 8px 12px;
+  background: ${({ theme }) => theme.colors.bg.input};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  color: ${({ theme }) => theme.colors.text.primary};
+  font-size: ${({ theme }) => theme.font.size.sm};
+  outline: none;
+  color-scheme: dark;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.border.accent};
+  }
+`
+
+const ConfirmScheduleBtn = styled.button<{ $disabled: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: ${({ theme }) => theme.radius.full};
+  background: ${({ theme }) => theme.colors.accent};
+  color: #fff;
+  font-size: ${({ theme }) => theme.font.size.sm};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  opacity: ${({ $disabled }) => ($disabled ? 0.6 : 1)};
+  cursor: ${({ $disabled }) => ($disabled ? 'default' : 'pointer')};
+  transition: all ${({ theme }) => theme.transition.fast};
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.accentHover};
+  }
+`
+
+const ErrorText = styled.span`
+  color: ${({ theme }) => theme.colors.danger};
+  font-size: ${({ theme }) => theme.font.size.xs};
+`
+
+const HintText = styled.span`
+  color: ${({ theme }) => theme.colors.text.muted};
+  font-size: ${({ theme }) => theme.font.size.xs};
+`
+
 export default function MessageComposer() {
   const [content, setContent] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
+  const [showSchedulePicker, setShowSchedulePicker] = useState(false)
+  const [scheduledAt, setScheduledAt] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { setScheduleDialogOpen } = useDashboardStore()
+  const { selectedChannelId } = useDashboardStore()
+  const createPost = useCreatePost()
+  const publishPost = usePublishPost()
 
   const handleFocus = () => setIsExpanded(true)
 
-  const handleScheduleClick = () => {
-    setScheduleDialogOpen(true)
+  const reset = () => {
+    setContent('')
+    setScheduledAt('')
+    setShowSchedulePicker(false)
+    setIsExpanded(false)
   }
+
+  const canSend = !!selectedChannelId && content.trim().length > 0 && !createPost.isPending
+
+  // "Send Now": create the post, then immediately publish it.
+  const handleSendNow = async () => {
+    if (!canSend || !selectedChannelId) return
+    try {
+      const { post } = await createPost.mutateAsync({
+        channelId: selectedChannelId,
+        content: content.trim(),
+      })
+      await publishPost.mutateAsync(post.id)
+      reset()
+    } catch {
+      // error surfaced below from the mutations
+    }
+  }
+
+  const error =
+    createPost.error instanceof Error
+      ? createPost.error.message
+      : publishPost.error instanceof Error
+      ? publishPost.error.message
+      : null
+
+  const busy = createPost.isPending || publishPost.isPending
 
   return (
     <ComposerWrapper>
@@ -228,7 +315,11 @@ export default function MessageComposer() {
           <ExpandedArea>
             <TextArea
               ref={textareaRef}
-              placeholder="Write your message..."
+              placeholder={
+                selectedChannelId
+                  ? 'Write your message...'
+                  : 'Connect and select a channel first…'
+              }
               value={content}
               onChange={(e) => setContent(e.target.value)}
               autoFocus
@@ -242,14 +333,58 @@ export default function MessageComposer() {
                 <FormatBtn id="format-link" title="Link">🔗</FormatBtn>
               </FormatTools>
               <SendMenu>
-                <ScheduleBtn onClick={handleScheduleClick} id="composer-schedule-btn">
+                {!selectedChannelId && (
+                  <HintText>Select a channel to post</HintText>
+                )}
+                {error && <ErrorText>{error}</ErrorText>}
+                <ScheduleBtn
+                  $active={showSchedulePicker}
+                  onClick={() => setShowSchedulePicker((v) => !v)}
+                  disabled={!selectedChannelId}
+                  id="composer-schedule-btn"
+                >
                   📅 Schedule
                 </ScheduleBtn>
-                <SendNowBtn id="composer-send-btn">
-                  ➤ Send Now
+                <SendNowBtn
+                  onClick={handleSendNow}
+                  disabled={!canSend}
+                  style={{ opacity: canSend ? 1 : 0.5 }}
+                  id="composer-send-btn"
+                >
+                  {busy ? 'Sending…' : '➤ Send Now'}
                 </SendNowBtn>
               </SendMenu>
             </ToolbarRow>
+
+            {showSchedulePicker && (
+              <ScheduleRow>
+                <DateTimeInput
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={(e) => setScheduledAt(e.target.value)}
+                  id="composer-schedule-input"
+                />
+                <ConfirmScheduleBtn
+                  $disabled={!scheduledAt || busy}
+                  onClick={async () => {
+                    if (!scheduledAt || !selectedChannelId) return
+                    try {
+                      await createPost.mutateAsync({
+                        channelId: selectedChannelId,
+                        content: content.trim(),
+                        scheduledAt: new Date(scheduledAt).toISOString(),
+                      })
+                      reset()
+                    } catch {
+                      // error surfaced above
+                    }
+                  }}
+                  id="composer-schedule-confirm"
+                >
+                  Confirm Schedule
+                </ConfirmScheduleBtn>
+              </ScheduleRow>
+            )}
           </ExpandedArea>
         </>
       ) : (
