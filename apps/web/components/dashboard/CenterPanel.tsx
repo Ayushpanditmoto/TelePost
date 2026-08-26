@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import styled from 'styled-components'
+import styled, { keyframes } from 'styled-components'
 import { useDashboardStore } from '@/store/dashboardStore'
 import { useChannels } from '@/hooks/useChannels'
 import { usePosts } from '@/hooks/usePosts'
@@ -186,6 +186,102 @@ const EmptyDesc = styled.p`
 
 const AVATAR_COLORS = ['#2196f3', '#9c27b0', '#f44336', '#4caf50', '#ff9800']
 
+// ─── Shimmer skeletons (React Query initial loads) ───────────────────────────
+const fadeIn = keyframes`
+  from { opacity: 0; }
+  to { opacity: 1; }
+`
+
+const shimmerSweep = keyframes`
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+`
+
+const Bone = styled.div<{ $w?: string; $h?: string; $round?: string }>`
+  width: ${({ $w }) => $w ?? '100%'};
+  height: ${({ $h }) => $h ?? '12px'};
+  border-radius: ${({ $round }) => $round ?? '6px'};
+  background-color: ${({ theme }) => theme.colors.bg.tertiary};
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 35%,
+    rgba(255, 255, 255, 0.13) 50%,
+    rgba(255, 255, 255, 0.05) 65%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: ${shimmerSweep} 1.4s ease-in-out infinite;
+`
+
+const HeaderSkeleton = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.sm};
+  animation: ${fadeIn} ${({ theme }) => theme.transition.default} ease both;
+`
+
+const HeaderSkeletonAvatar = styled(Bone)`
+  && {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+  }
+`
+
+const HeaderSkeletonLines = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`
+
+const CardSkeleton = styled.div`
+  background: ${({ theme }) => theme.colors.bg.message};
+  border-radius: ${({ theme }) => theme.radius.md};
+  padding: 10px 14px 8px;
+  margin: 2px 12px;
+  opacity: 0;
+  animation: ${fadeIn} ${({ theme }) => theme.transition.default} ease both;
+`
+
+const CardSkeletonLines = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+const CardSkeletonMeta = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+`
+
+function FeedSkeleton() {
+  // Staggered delays make the bones settle in instead of blinking on.
+  return (
+    <div id="feed-skeleton">
+      {[0, 1, 2, 3, 4].map((i) => (
+        <CardSkeleton
+          key={i}
+          style={{ animationDelay: `${i * 0.07}s` }}
+        >
+          <CardSkeletonLines>
+            <Bone $w="88%" />
+            <Bone $w="96%" />
+            <Bone $w={i % 2 === 0 ? '54%' : '71%'} />
+          </CardSkeletonLines>
+          <CardSkeletonMeta>
+            <Bone $w="86px" $h="18px" $round="9999px" />
+            <Bone $w="70px" $h="10px" />
+          </CardSkeletonMeta>
+        </CardSkeleton>
+      ))}
+    </div>
+  )
+}
+
 const FILTERS = [
   { label: 'All', value: 'all' },
   { label: '🕐 Scheduled', value: 'scheduled' },
@@ -196,7 +292,7 @@ const FILTERS = [
 
 export default function CenterPanel() {
   const { selectedChannelId } = useDashboardStore()
-  const { data: channels = [] } = useChannels()
+  const { data: channels = [], isLoading: channelsLoading } = useChannels()
   const { data: allPosts = [], isLoading: postsLoading } = usePosts(
     selectedChannelId
   )
@@ -213,18 +309,28 @@ export default function CenterPanel() {
     <Panel>
       <Header>
         <ChannelInfo>
-          {channel && (
-            <>
-              <ChannelAvatar $color={AVATAR_COLORS[channelIndex % AVATAR_COLORS.length] ?? '#2196f3'}>
-                {channel.title.charAt(0)}
-              </ChannelAvatar>
-              <ChannelDetails>
-                <ChannelName>
-                  {channel.username ? `@${channel.username}` : channel.title}
-                </ChannelName>
-                <ChannelSub>{channel.title}</ChannelSub>
-              </ChannelDetails>
-            </>
+          {channelsLoading ? (
+            <HeaderSkeleton id="header-skeleton">
+              <HeaderSkeletonAvatar />
+              <HeaderSkeletonLines>
+                <Bone $w="120px" $h="13px" />
+                <Bone $w="86px" $h="10px" />
+              </HeaderSkeletonLines>
+            </HeaderSkeleton>
+          ) : (
+            channel && (
+              <>
+                <ChannelAvatar $color={AVATAR_COLORS[channelIndex % AVATAR_COLORS.length] ?? '#2196f3'}>
+                  {channel.title.charAt(0)}
+                </ChannelAvatar>
+                <ChannelDetails>
+                  <ChannelName>
+                    {channel.username ? `@${channel.username}` : channel.title}
+                  </ChannelName>
+                  <ChannelSub>{channel.title}</ChannelSub>
+                </ChannelDetails>
+              </>
+            )
           )}
         </ChannelInfo>
         <HeaderActions>
@@ -249,10 +355,7 @@ export default function CenterPanel() {
 
       <Feed id="message-feed">
         {postsLoading ? (
-          <EmptyState>
-            <EmptyIcon>⏳</EmptyIcon>
-            <EmptyTitle>Loading…</EmptyTitle>
-          </EmptyState>
+          <FeedSkeleton />
         ) : posts.length > 0 ? (
           <>
             <DateSeparator>

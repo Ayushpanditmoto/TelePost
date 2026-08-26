@@ -1,10 +1,19 @@
 "use client";
 
 import React from "react";
-import styled from "styled-components";
+import styled, { keyframes } from "styled-components";
 import { useDashboardStore } from "@/store/dashboardStore";
 import type { Post } from "@/hooks/usePosts";
 import { formatPostTime } from "@/lib/mockData";
+
+const cardIn = keyframes`
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+`;
+
+const spin = keyframes`
+  to { transform: rotate(360deg); }
+`;
 
 const Card = styled.article<{ $selected: boolean; $status: string }>`
   background: ${({ $selected, theme }) =>
@@ -16,9 +25,12 @@ const Card = styled.article<{ $selected: boolean; $status: string }>`
   border: 1px solid
     ${({ $selected, theme }) =>
       $selected ? theme.colors.border.accent : "transparent"};
+  opacity: 0;
+  animation: ${cardIn} 0.25s ease both;
   transition:
     background ${({ theme }) => theme.transition.fast},
     border-color ${({ theme }) => theme.transition.fast},
+    box-shadow ${({ theme }) => theme.transition.fast},
     transform ${({ theme }) => theme.transition.fast};
   position: relative;
 
@@ -27,9 +39,16 @@ const Card = styled.article<{ $selected: boolean; $status: string }>`
       $selected
         ? theme.colors.bg.messageSelected
         : theme.colors.bg.messageHover};
-    transform: translateX(2px);
+    transform: translateX(3px) scale(1.005);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   }
+
+  ${({ $selected, theme }) =>
+    $selected
+      ? `box-shadow: 0 0 0 1px ${theme.colors.border.accent}, 0 4px 14px rgba(33, 150, 243, 0.15);`
+      : ""}
 `;
+
 
 const Content = styled.p`
   font-size: ${({ theme }) => theme.font.size.sm};
@@ -81,6 +100,11 @@ const StatusBadge = styled.span<{ $status: string }>`
           color: ${theme.colors.status.draft};
           background: ${theme.colors.status.draftBg};
         `;
+      case "publishing":
+        return `
+          color: ${theme.colors.status.scheduled};
+          background: ${theme.colors.status.scheduledBg};
+        `;
       default:
         return `
           color: ${theme.colors.text.muted};
@@ -88,6 +112,11 @@ const StatusBadge = styled.span<{ $status: string }>`
         `;
     }
   }}
+`;
+
+const PublishingGlyph = styled.span`
+  display: inline-block;
+  animation: ${spin} 1.2s linear infinite;
 `;
 
 const Timestamp = styled.time`
@@ -134,7 +163,13 @@ export default function MessageCard({ post }: MessageCardProps) {
 
       <Meta>
         <StatusBadge $status={post.status}>
-          {STATUS_LABELS[post.status] ?? post.status}
+          {post.status === "publishing" ? (
+            <>
+              <PublishingGlyph>⟳</PublishingGlyph> Publishing
+            </>
+          ) : (
+            (STATUS_LABELS[post.status] ?? post.status)
+          )}
         </StatusBadge>
         <Timestamp
           dateTime={post.scheduledAt ?? post.publishedAt ?? post.createdAt}
