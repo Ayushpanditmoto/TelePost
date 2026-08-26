@@ -1,4 +1,3 @@
-<h1 align="center">TelePost</h1>
 <p align="center">
   <img src="./TeleBot.png" alt="TelePost" width="850" />
 </p>
