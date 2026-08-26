@@ -3,6 +3,8 @@ export interface Env {
   MEDIA_BUCKET: R2Bucket
   POST_QUEUE: Queue
   ENVIRONMENT: string
+  /** Primary web app origin used for CORS, e.g. https://telepost.app */
+  APP_URL: string
   TOKEN_ENCRYPTION_KEY: string
   TELEGRAM_BOT_TOKEN: string
   SESSION_SECRET: string

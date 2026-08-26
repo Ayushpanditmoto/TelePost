@@ -17,12 +17,25 @@ import type { Env } from './types'
 
 const app = new Hono<{ Bindings: Env }>()
 
+// Origins allowed to call the API: APP_URL always; localhost only outside prod.
+function allowedOrigins(env: Env): string[] {
+  const origins: string[] = []
+  if (env.APP_URL) origins.push(env.APP_URL.replace(/\/$/, ''))
+  if (env.ENVIRONMENT !== 'production') {
+    origins.push('http://localhost:3000', 'http://127.0.0.1:3000')
+  }
+  return origins
+}
+
 // Middleware
 app.use('*', logger())
 app.use(
   '/api/*',
   cors({
-    origin: ['http://localhost:3000', 'https://telepost.app'],
+    origin: (origin, c) => {
+      const allowed = allowedOrigins(c.env)
+      return origin && allowed.includes(origin) ? origin : null
+    },
     allowHeaders: ['Content-Type', 'Authorization'],
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,

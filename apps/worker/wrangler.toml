@@ -4,7 +4,8 @@ compatibility_date = "2024-05-29"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-ENVIRONMENT = "development"
+ENVIRONMENT = "production"
+APP_URL = "https://telepost.app"
 
 [[d1_databases]]
 binding = "DB"
