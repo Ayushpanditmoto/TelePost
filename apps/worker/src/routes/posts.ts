@@ -1,14 +1,13 @@
 import { Hono } from 'hono'
 import { and, desc, eq } from 'drizzle-orm'
 import { createDb } from '../db'
-import { posts, telegramChannels } from '@telepost/db'
+import { postMedia, posts, telegramChannels } from '@telepost/db'
 import type { HonoEnv, SessionUser } from '../types'
 import type { Context } from 'hono'
 import { requireAuth } from '../lib/auth'
 import { countUserScheduledPosts, getUserPlan } from '../lib/planLimits'
 import { claimPostForPublish } from '../lib/publish'
 import { processPublishMessage } from '../lib/publisher'
-import { deleteMessage } from '../lib/telegram'
 import { MAX_MEDIA_SIZE_BYTES, uploadPostMedia } from '../lib/media'
 
 export const postRoutes = new Hono<HonoEnv>()
@@ -33,6 +32,9 @@ function toPublicPost(row: PostRow) {
 
 const EDITABLE_STATUSES = new Set(['draft', 'scheduled'])
 const PUBLISHABLE_STATUSES = new Set(['draft', 'scheduled', 'failed'])
+// Statuses whose message text can be edited (nothing sent to Telegram yet or
+// delivery never succeeded). Published posts are frozen as-is by design.
+const CONTENT_EDITABLE_STATUSES = new Set(['draft', 'scheduled', 'failed'])
 
 // ─── Validation helpers ──────────────────────────────────────────────────────
 
@@ -184,14 +186,15 @@ postRoutes.get('/:id', async (c) => {
   return c.json({ post: toPublicPost(check.post) })
 })
 
-// PATCH /api/posts/:id — edit content / scheduledAt while draft or scheduled.
+// PATCH /api/posts/:id — edit content (draft/scheduled/failed) and/or
+// scheduledAt (draft/scheduled only; failed posts reschedule via /reschedule).
 postRoutes.patch('/:id', async (c) => {
   const user = await requireAuth(c)
   const check = await ownedPostOrError(c, user, c.req.param('id'))
   if (!check.ok) return c.json({ error: check.error }, check.status)
   const { post } = check
 
-  if (!EDITABLE_STATUSES.has(post.status)) {
+  if (!CONTENT_EDITABLE_STATUSES.has(post.status)) {
     return c.json({ error: `Cannot edit a ${post.status} post` }, 409)
   }
 
@@ -200,6 +203,14 @@ postRoutes.patch('/:id', async (c) => {
       .json<{ content?: unknown; scheduledAt?: unknown | null }>()
       .catch(() => null)
   ) ?? {}
+
+  // Schedule changes go through POST /reschedule for failed posts.
+  if (body.scheduledAt !== undefined && post.status === 'failed') {
+    return c.json(
+      { error: 'Use reschedule to move a failed post — only content is editable here' },
+      409
+    )
+  }
 
   const updates: Partial<PostRow> = { updatedAt: new Date().toISOString() }
 
@@ -235,9 +246,9 @@ postRoutes.patch('/:id', async (c) => {
   return c.json({ post: updated ? toPublicPost(updated) : toPublicPost(post) })
 })
 
-// DELETE /api/posts/:id — remove a post. For published posts this ALSO deletes
-// the message from the Telegram channel (bot admin, within Telegram's 48-hour
-// deletion window). Cancelled/failed posts delete cleanly; publishing is locked.
+// DELETE /api/posts/:id — remove the post from TelePost's database only.
+// The published Telegram message is intentionally left untouched: deleting a
+// record here never reaches the live channel. Publishing-in-flight is locked.
 postRoutes.delete('/:id', async (c) => {
   const user = await requireAuth(c)
   const check = await ownedPostOrError(c, user, c.req.param('id'))
@@ -250,28 +261,15 @@ postRoutes.delete('/:id', async (c) => {
     return c.json({ error: 'Cannot delete a post while it is being published' }, 409)
   }
 
-  // A live message in Telegram? Remove it there first so we never orphan one.
-  if (post.status === 'published' && post.telegramMessageId) {
-    const [channel] = await db
-      .select()
-      .from(telegramChannels)
-      .where(eq(telegramChannels.id, post.channelId))
-      .limit(1)
-    if (!channel) return c.json({ error: 'Channel no longer exists' }, 409)
-
-    const res = await deleteMessage(
-      c.env.TELEGRAM_BOT_TOKEN,
-      channel.telegramChatId,
-      post.telegramMessageId
-    )
-    if (!res.ok) {
-      const desc = res.description ?? 'Unknown Telegram error'
-      const hint = /can't be deleted|48/i.test(desc)
-        ? ' — Telegram only lets bots delete messages within 48 hours of posting'
-        : ''
-      return c.json({ error: `Telegram refused: ${desc}${hint}` }, 409)
-    }
-  }
+  // Best-effort cleanup of any media blobs attached to this post before the
+  // row goes away (postMedia rows cascade-delete with it).
+  const mediaRows = await db
+    .select()
+    .from(postMedia)
+    .where(eq(postMedia.postId, post.id))
+  await Promise.allSettled(
+    mediaRows.map((m) => c.env.MEDIA_BUCKET.delete(m.r2Key))
+  )
 
   await db.delete(posts).where(eq(posts.id, post.id))
 

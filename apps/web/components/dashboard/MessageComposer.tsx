@@ -3,7 +3,12 @@
 import React, { useState, useRef } from 'react'
 import styled, { keyframes } from 'styled-components'
 import { useDashboardStore } from '@/store/dashboardStore'
-import { useCreatePost, usePublishPost, useUploadMedia } from '@/hooks/usePosts'
+import {
+  useCreatePost,
+  useEditPost,
+  usePublishPost,
+  useUploadMedia,
+} from '@/hooks/usePosts'
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(8px); }
@@ -287,6 +292,50 @@ const HintText = styled.span`
   font-size: ${({ theme }) => theme.font.size.xs};
 `
 
+const EditBar = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.sm};
+  margin-bottom: ${({ theme }) => theme.spacing.sm};
+  flex-wrap: wrap;
+`
+
+const EditBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: ${({ theme }) => theme.radius.full};
+  background: ${({ theme }) => theme.colors.accentMuted};
+  color: ${({ theme }) => theme.colors.accent};
+  font-size: ${({ theme }) => theme.font.size.xs};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+`
+
+const EditHint = styled.span`
+  color: ${({ theme }) => theme.colors.text.muted};
+  font-size: ${({ theme }) => theme.font.size.xs};
+`
+
+const DiscardBtn = styled.button`
+  display: flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: ${({ theme }) => theme.radius.full};
+  border: 1px solid ${({ theme }) => theme.colors.border.default};
+  background: transparent;
+  color: ${({ theme }) => theme.colors.text.secondary};
+  font-size: ${({ theme }) => theme.font.size.sm};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  transition: all ${({ theme }) => theme.transition.fast};
+
+  &:hover:not(:disabled) {
+    border-color: ${({ theme }) => theme.colors.border.accent};
+    color: ${({ theme }) => theme.colors.text.primary};
+    background: ${({ theme }) => theme.colors.bg.tertiary};
+  }
+`
+
 export default function MessageComposer() {
   const [content, setContent] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
@@ -296,14 +345,29 @@ export default function MessageComposer() {
   const [localError, setLocalError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { selectedChannelId } = useDashboardStore()
+  const { selectedChannelId, editingPost, setEditingPost } = useDashboardStore()
   const createPost = useCreatePost()
   const publishPost = usePublishPost()
   const uploadMedia = useUploadMedia()
+  const editPost = useEditPost()
 
   const MAX_MEDIA_BYTES = 50 * 1024 * 1024
 
   const handleFocus = () => setIsExpanded(true)
+
+  // Tracks which editing snapshot was last loaded into the composer.
+  const [loadedEditingPost, setLoadedEditingPost] =
+    useState<typeof editingPost>(null)
+
+  // Load the post being edited into the composer (snapshot replaces wholesale).
+  // State is adjusted during render instead of inside an effect, so React
+  // applies these updates immediately before committing — no cascading renders.
+  if (editingPost && loadedEditingPost !== editingPost) {
+    setLoadedEditingPost(editingPost)
+    setContent(editingPost.content)
+    setShowSchedulePicker(false)
+    setIsExpanded(true)
+  }
 
   const reset = () => {
     setContent('')
@@ -337,7 +401,7 @@ export default function MessageComposer() {
 
   // Create → (attach media) → publish / leave scheduled.
   const submit = async (scheduleIso: string | null) => {
-    if (!canSend || !selectedChannelId) return
+    if (!canSend || !selectedChannelId || editingPost) return
     try {
       const { post } = await createPost.mutateAsync({
         channelId: selectedChannelId,
@@ -358,18 +422,88 @@ export default function MessageComposer() {
 
   const handleSendNow = () => submit(null)
 
+  const canSaveEdit =
+    !!editingPost && content.trim().length > 0 && !editPost.isPending
+
+  // Save content edits back to TelePost's database — Telegram is never touched.
+  const handleSaveEdit = async () => {
+    if (!canSaveEdit || !editingPost) return
+    try {
+      await editPost.mutateAsync({
+        id: editingPost.id,
+        content: content.trim(),
+      })
+      setEditingPost(null)
+      reset()
+    } catch {
+      // errors surfaced below from the mutations
+    }
+  }
+
+  const handleDiscardEdit = () => {
+    setEditingPost(null)
+    reset()
+  }
+
   const error =
     localError ??
-    (createPost.error instanceof Error
-      ? createPost.error.message
-      : uploadMedia.error instanceof Error
-        ? uploadMedia.error.message
-        : publishPost.error instanceof Error
-          ? publishPost.error.message
-          : null)
+    (editPost.error instanceof Error
+      ? editPost.error.message
+      : createPost.error instanceof Error
+        ? createPost.error.message
+        : uploadMedia.error instanceof Error
+          ? uploadMedia.error.message
+          : publishPost.error instanceof Error
+            ? publishPost.error.message
+            : null)
 
   const busy =
     createPost.isPending || uploadMedia.isPending || publishPost.isPending
+
+  // ─── Edit mode: update an existing draft/scheduled/failed post ──────────────
+  if (editingPost) {
+    return (
+      <ComposerWrapper>
+        <ExpandedArea>
+          <EditBar id="composer-edit-bar">
+            <EditBadge>✏️ Editing</EditBadge>
+            <EditHint>
+              Saves to TelePost only — messages live on Telegram aren&apos;t touched
+            </EditHint>
+          </EditBar>
+          <TextArea
+            ref={textareaRef}
+            placeholder="Update your message..."
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            autoFocus
+            id="composer-edit-textarea"
+          />
+          <ToolbarRow>
+            <span />
+            <SendMenu>
+              {error && <ErrorText>{error}</ErrorText>}
+              <DiscardBtn
+                onClick={handleDiscardEdit}
+                disabled={editPost.isPending}
+                id="composer-edit-discard"
+              >
+                Discard
+              </DiscardBtn>
+              <SendNowBtn
+                onClick={handleSaveEdit}
+                disabled={!canSaveEdit}
+                style={{ opacity: canSaveEdit ? 1 : 0.5 }}
+                id="composer-edit-save"
+              >
+                {editPost.isPending ? 'Saving…' : '💾 Save Changes'}
+              </SendNowBtn>
+            </SendMenu>
+          </ToolbarRow>
+        </ExpandedArea>
+      </ComposerWrapper>
+    )
+  }
 
   return (
     <ComposerWrapper>

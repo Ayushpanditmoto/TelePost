@@ -10,6 +10,10 @@ interface DashboardStore {
   setSelectedPostId: (id: string | null) => void
   clearSelectedPost: () => void
 
+  // Editing an existing post (composer loads this snapshot and saves via PATCH)
+  editingPost: EditingPostSnapshot | null
+  setEditingPost: (snapshot: EditingPostSnapshot | null) => void
+
   // Composer
   isComposerExpanded: boolean
   setComposerExpanded: (expanded: boolean) => void
@@ -23,6 +27,12 @@ interface DashboardStore {
   setScheduleDialogOpen: (open: boolean) => void
 }
 
+export interface EditingPostSnapshot {
+  id: string
+  channelId: string
+  content: string
+}
+
 export const useDashboardStore = create<DashboardStore>((set) => ({
   // null → no real channel selected yet; LeftPanel auto-selects the first one.
   selectedChannelId: null,
@@ -31,6 +41,9 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
   selectedPostId: null,
   setSelectedPostId: (id) => set({ selectedPostId: id }),
   clearSelectedPost: () => set({ selectedPostId: null }),
+
+  editingPost: null,
+  setEditingPost: (snapshot) => set({ editingPost: snapshot }),
 
   isComposerExpanded: false,
   setComposerExpanded: (expanded) => set({ isComposerExpanded: expanded }),

@@ -234,7 +234,7 @@ const DangerAction = styled.button`
 `
 
 export default function RightPanel() {
-  const { selectedPostId, setSelectedPostId, clearSelectedPost } =
+  const { selectedPostId, setSelectedPostId, clearSelectedPost, setEditingPost } =
     useDashboardStore()
   const { data: channels = [] } = useChannels()
   const publishPost = usePublishPost()
@@ -260,6 +260,20 @@ export default function RightPanel() {
   })
 
   const channel = channels.find((c) => c.id === post?.channelId)
+
+  // Drafts/scheduled/failed posts are editable; published ones stay frozen —
+  // their live Telegram message is intentionally never touched.
+  const canEditContent =
+    !!post &&
+    (post.status === 'draft' ||
+      post.status === 'scheduled' ||
+      post.status === 'failed')
+
+  const startEditing = () => {
+    if (!post) return
+    setEditingPost({ id: post.id, channelId: post.channelId, content: post.content })
+    setSelectedPostId(null) // close the details panel; the composer takes over
+  }
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -412,6 +426,11 @@ export default function RightPanel() {
         )}
         {post.status === 'scheduled' && (
           <>
+            {canEditContent && (
+              <SecondaryAction id="action-edit" onClick={startEditing}>
+                ✏️ Edit
+              </SecondaryAction>
+            )}
             <SecondaryAction
               id="action-reschedule"
               onClick={() => setShowReschedule((v) => !v)}
@@ -443,6 +462,11 @@ export default function RightPanel() {
         )}
         {post.status === 'draft' && (
           <>
+            {canEditContent && (
+              <SecondaryAction id="action-edit" onClick={startEditing}>
+                ✏️ Edit
+              </SecondaryAction>
+            )}
             <PrimaryAction
               id="action-post-now"
               onClick={() => runAction(() => publishPost.mutateAsync(post.id))}
@@ -471,22 +495,19 @@ export default function RightPanel() {
         {post.status === 'published' && (
           <DangerAction
             id="action-delete"
-            onClick={() => {
-              if (
-                window.confirm(
-                  'Delete this message from your Telegram channel as well?'
-                )
-              ) {
-                runAction(() => deletePost.mutateAsync(post.id))
-              }
-            }}
+            onClick={() => runAction(() => deletePost.mutateAsync(post.id))}
             disabled={deletePost.isPending}
           >
-            {deletePost.isPending ? 'Deleting…' : '🗑 Delete (also from Telegram)'}
+            {deletePost.isPending ? 'Deleting…' : '🗑 Delete'}
           </DangerAction>
         )}
         {post.status === 'failed' && (
           <>
+            {canEditContent && (
+              <SecondaryAction id="action-edit" onClick={startEditing}>
+                ✏️ Edit
+              </SecondaryAction>
+            )}
             <PrimaryAction
               id="action-retry"
               onClick={() => runAction(() => publishPost.mutateAsync(post.id))}

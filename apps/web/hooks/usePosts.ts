@@ -108,6 +108,20 @@ export function useDeletePost() {
   })
 }
 
+// Edit a draft/scheduled/failed post's content (database-only; nothing is sent
+// to Telegram until publish/schedule fires).
+export function useEditPost() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, content }: { id: string; content: string }) =>
+      api<{ post: Post }>(`/api/posts/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ content }),
+      }),
+    onSuccess: () => invalidatePosts(queryClient),
+  })
+}
+
 export function useReschedulePost() {
   const queryClient = useQueryClient()
   return useMutation({
