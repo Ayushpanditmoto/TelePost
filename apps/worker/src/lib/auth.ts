@@ -15,10 +15,14 @@ function isSecure(env: Env): boolean {
 }
 
 function cookieBase(env: Env) {
+  const isProd = isSecure(env)
   return {
     httpOnly: true,
-    secure: isSecure(env),
-    sameSite: 'Lax' as const,
+    secure: isProd,
+    // The frontend (vercel.app) and API (workers.dev) are cross-site, so the
+    // session cookie must be None+Secure for credentialed cross-origin requests.
+    // In local dev (same-site localhost) Lax is sufficient and more conservative.
+    sameSite: isProd ? ('None' as const) : ('Lax' as const),
     path: '/',
   }
 }
