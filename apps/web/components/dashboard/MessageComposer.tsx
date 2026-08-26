@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react'
 import styled, { keyframes } from 'styled-components'
 import { useDashboardStore } from '@/store/dashboardStore'
-import { useCreatePost, usePublishPost } from '@/hooks/usePosts'
+import { useCreatePost, usePublishPost, useUploadMedia } from '@/hooks/usePosts'
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(8px); }
@@ -111,6 +111,30 @@ const SendBtn = styled.button<{ $hasContent: boolean }>`
 const ExpandedArea = styled.div`
   animation: ${fadeIn} ${({ theme }) => theme.transition.default} ease;
   margin-bottom: ${({ theme }) => theme.spacing.md};
+`
+
+const MediaChip = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: ${({ theme }) => theme.spacing.sm};
+  padding: 6px 10px;
+  background: ${({ theme }) => theme.colors.bg.tertiary};
+  border: 1px solid ${({ theme }) => theme.colors.border.subtle};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: ${({ theme }) => theme.font.size.xs};
+  color: ${({ theme }) => theme.colors.text.secondary};
+`
+
+const RemoveMediaBtn = styled.button`
+  color: ${({ theme }) => theme.colors.text.muted};
+  font-size: ${({ theme }) => theme.font.size.xs};
+  padding: 0 2px;
+  transition: color ${({ theme }) => theme.transition.fast};
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.danger};
+  }
 `
 
 const TextArea = styled.textarea`
@@ -268,45 +292,84 @@ export default function MessageComposer() {
   const [isExpanded, setIsExpanded] = useState(false)
   const [showSchedulePicker, setShowSchedulePicker] = useState(false)
   const [scheduledAt, setScheduledAt] = useState('')
+  const [mediaFile, setMediaFile] = useState<File | null>(null)
+  const [localError, setLocalError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { selectedChannelId } = useDashboardStore()
   const createPost = useCreatePost()
   const publishPost = usePublishPost()
+  const uploadMedia = useUploadMedia()
+
+  const MAX_MEDIA_BYTES = 50 * 1024 * 1024
 
   const handleFocus = () => setIsExpanded(true)
 
   const reset = () => {
     setContent('')
     setScheduledAt('')
+    setMediaFile(null)
     setShowSchedulePicker(false)
     setIsExpanded(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const canSend = !!selectedChannelId && content.trim().length > 0 && !createPost.isPending
+  const pickMedia = (file: File | undefined) => {
+    setLocalError(null)
+    if (!file) return
+    if (!/^(image|video)\//.test(file.type)) {
+      setLocalError('Only images and videos are supported')
+      return
+    }
+    if (file.size > MAX_MEDIA_BYTES) {
+      setLocalError('File exceeds the 50 MB limit')
+      return
+    }
+    setMediaFile(file)
+  }
 
-  // "Send Now": create the post, then immediately publish it.
-  const handleSendNow = async () => {
+  const canSend =
+    !!selectedChannelId &&
+    content.trim().length > 0 &&
+    !createPost.isPending &&
+    !uploadMedia.isPending &&
+    !publishPost.isPending
+
+  // Create → (attach media) → publish / leave scheduled.
+  const submit = async (scheduleIso: string | null) => {
     if (!canSend || !selectedChannelId) return
     try {
       const { post } = await createPost.mutateAsync({
         channelId: selectedChannelId,
         content: content.trim(),
+        scheduledAt: scheduleIso,
       })
-      await publishPost.mutateAsync(post.id)
+      if (mediaFile) {
+        await uploadMedia.mutateAsync({ postId: post.id, file: mediaFile })
+      }
+      if (!scheduleIso) {
+        await publishPost.mutateAsync(post.id)
+      }
       reset()
     } catch {
-      // error surfaced below from the mutations
+      // errors surfaced below from the mutations
     }
   }
 
-  const error =
-    createPost.error instanceof Error
-      ? createPost.error.message
-      : publishPost.error instanceof Error
-      ? publishPost.error.message
-      : null
+  const handleSendNow = () => submit(null)
 
-  const busy = createPost.isPending || publishPost.isPending
+  const error =
+    localError ??
+    (createPost.error instanceof Error
+      ? createPost.error.message
+      : uploadMedia.error instanceof Error
+        ? uploadMedia.error.message
+        : publishPost.error instanceof Error
+          ? publishPost.error.message
+          : null)
+
+  const busy =
+    createPost.isPending || uploadMedia.isPending || publishPost.isPending
 
   return (
     <ComposerWrapper>
@@ -325,8 +388,37 @@ export default function MessageComposer() {
               autoFocus
               id="composer-textarea"
             />
+            {mediaFile && (
+              <MediaChip>
+                {mediaFile.type.startsWith('video/') ? '🎬' : '🖼️'}{' '}
+                {mediaFile.name.length > 28
+                  ? mediaFile.name.slice(0, 25) + '…'
+                  : mediaFile.name}{' '}
+                ({Math.max(1, Math.round(mediaFile.size / 1024))} KB)
+                <RemoveMediaBtn
+                  onClick={() => setMediaFile(null)}
+                  title="Remove attachment"
+                >
+                  ✕
+                </RemoveMediaBtn>
+              </MediaChip>
+            )}
             <ToolbarRow>
               <FormatTools>
+                <AttachBtn
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Attach image or video"
+                  id="composer-attach-btn"
+                >
+                  📎
+                </AttachBtn>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  style={{ display: 'none' }}
+                  onChange={(e) => pickMedia(e.target.files?.[0])}
+                />
                 <FormatBtn id="format-bold" title="Bold">B</FormatBtn>
                 <FormatBtn id="format-italic" title="Italic" style={{ fontStyle: 'italic' }}>I</FormatBtn>
                 <FormatBtn id="format-code" title="Code" style={{ fontFamily: 'monospace' }}>{'{}'}</FormatBtn>
@@ -366,18 +458,9 @@ export default function MessageComposer() {
                 />
                 <ConfirmScheduleBtn
                   $disabled={!scheduledAt || busy}
-                  onClick={async () => {
-                    if (!scheduledAt || !selectedChannelId) return
-                    try {
-                      await createPost.mutateAsync({
-                        channelId: selectedChannelId,
-                        content: content.trim(),
-                        scheduledAt: new Date(scheduledAt).toISOString(),
-                      })
-                      reset()
-                    } catch {
-                      // error surfaced above
-                    }
+                  onClick={() => {
+                    if (!scheduledAt) return
+                    void submit(new Date(scheduledAt).toISOString())
                   }}
                   id="composer-schedule-confirm"
                 >

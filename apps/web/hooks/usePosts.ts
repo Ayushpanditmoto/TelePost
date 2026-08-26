@@ -29,17 +29,29 @@ interface PostsResponse {
   posts: Post[]
 }
 
-export function usePosts(channelId: string | null) {
+export function usePosts(channelId: string | null | undefined) {
   return useQuery<Post[]>({
-    queryKey: ['posts', channelId],
+    queryKey: ['posts', channelId ?? 'all'],
     queryFn: async () => {
-      const data = await api<PostsResponse>(
-        `/api/posts?channelId=${encodeURIComponent(channelId!)}`
-      )
+      const qs = channelId ? `?channelId=${encodeURIComponent(channelId)}` : ''
+      const data = await api<PostsResponse>(`/api/posts${qs}`)
       return data.posts
     },
-    enabled: !!channelId,
     staleTime: 1000 * 15,
+  })
+}
+
+// Attach an image/video to an existing draft/scheduled post (R2 upload).
+export function useUploadMedia() {
+  return useMutation({
+    mutationFn: ({ postId, file }: { postId: string; file: File }) => {
+      const form = new FormData()
+      form.append('file', file)
+      return api<{ mediaId: string; r2Key: string }>(`/api/posts/${postId}/media`, {
+        method: 'POST',
+        body: form,
+      })
+    },
   })
 }
 

@@ -348,10 +348,6 @@ export default function LeftPanel() {
           <NavIcon>📅</NavIcon>
           Calendar
         </NavItem>
-        <NavItem href="/dashboard/media" id="nav-media">
-          <NavIcon>🖼️</NavIcon>
-          Media
-        </NavItem>
         <NavItem href="/dashboard/history" id="nav-history">
           <NavIcon>📜</NavIcon>
           History

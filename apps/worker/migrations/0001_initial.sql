@@ -141,6 +141,6 @@ CREATE INDEX IF NOT EXISTS analytics_post_id_idx ON post_analytics(post_id);
 
 -- ─── Seed: Default Plans ─────────────────────────────────────────────────────
 INSERT OR IGNORE INTO plans (id, name, slug, price, currency, max_channels, max_scheduled_posts, max_media_mb, allow_recurring, features) VALUES
-  ('plan_free',     'Free',     'free',     0,   'USD', 1,  10,  0,   0, '["1 channel","10 scheduled posts","Text posts only","Basic scheduling"]'),
+  ('plan_free',     'Free',     'free',     0,   'USD', 1,  10,  10,  0, '["1 channel","10 scheduled posts","Images & videos (10 MB)","Basic scheduling"]'),
   ('plan_pro',      'Pro',      'pro',      19,  'USD', 5,  100, 100, 1, '["5 channels","100 scheduled posts","Images & videos","Recurring posts","Timezone support"]'),
   ('plan_business', 'Business', 'business', 49,  'USD', 20, 0,   500, 1, '["20 channels","Unlimited posts","Images & videos","Recurring posts","Priority support","Post analytics"]');
