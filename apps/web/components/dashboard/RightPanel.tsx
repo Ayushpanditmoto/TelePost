@@ -451,9 +451,22 @@ export default function RightPanel() {
             >
               Cancel Post
             </DangerAction>
+            {post.seriesId && (
+              <DangerAction
+                id="action-stop-series"
+                onClick={() =>
+                  runAction(() =>
+                    deletePost.mutateAsync({ id: post.id, scope: 'series' })
+                  )
+                }
+                disabled={deletePost.isPending}
+              >
+                🔁 Stop Repeats
+              </DangerAction>
+            )}
             <DangerAction
               id="action-delete"
-              onClick={() => runAction(() => deletePost.mutateAsync(post.id))}
+              onClick={() => runAction(() => deletePost.mutateAsync({ id: post.id }))}
               disabled={deletePost.isPending}
             >
               🗑 Delete
@@ -476,7 +489,7 @@ export default function RightPanel() {
             </PrimaryAction>
             <DangerAction
               id="action-delete"
-              onClick={() => runAction(() => deletePost.mutateAsync(post.id))}
+              onClick={() => runAction(() => deletePost.mutateAsync({ id: post.id }))}
               disabled={deletePost.isPending}
             >
               🗑 Delete
@@ -486,7 +499,7 @@ export default function RightPanel() {
         {post.status === 'cancelled' && (
           <DangerAction
             id="action-delete"
-            onClick={() => runAction(() => deletePost.mutateAsync(post.id))}
+            onClick={() => runAction(() => deletePost.mutateAsync({ id: post.id }))}
             disabled={deletePost.isPending}
           >
             🗑 Delete
@@ -495,7 +508,7 @@ export default function RightPanel() {
         {post.status === 'published' && (
           <DangerAction
             id="action-delete"
-            onClick={() => runAction(() => deletePost.mutateAsync(post.id))}
+            onClick={() => runAction(() => deletePost.mutateAsync({ id: post.id }))}
             disabled={deletePost.isPending}
           >
             {deletePost.isPending ? 'Deleting…' : '🗑 Delete'}

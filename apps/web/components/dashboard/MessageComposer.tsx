@@ -248,6 +248,69 @@ const ScheduleRow = styled.div`
   margin-top: ${({ theme }) => theme.spacing.sm};
 `
 
+const RepeatRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.xs};
+  margin-top: ${({ theme }) => theme.spacing.sm};
+  flex-wrap: wrap;
+`
+
+const RepeatLabel = styled.span`
+  color: ${({ theme }) => theme.colors.text.secondary};
+  font-size: ${({ theme }) => theme.font.size.xs};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  margin-right: ${({ theme }) => theme.spacing.xs};
+`
+
+const ModeChip = styled.button<{ $active?: boolean }>`
+  padding: 4px 12px;
+  border-radius: ${({ theme }) => theme.radius.full};
+  border: 1px solid
+    ${({ $active, theme }) =>
+      $active ? theme.colors.border.accent : theme.colors.border.default};
+  background: ${({ $active, theme }) =>
+    $active ? theme.colors.accentMuted : 'transparent'};
+  color: ${({ $active, theme }) =>
+    $active ? theme.colors.accent : theme.colors.text.muted};
+  font-size: ${({ theme }) => theme.font.size.xs};
+  transition: all ${({ theme }) => theme.transition.fast};
+
+  &:hover {
+    border-color: ${({ theme }) => theme.colors.border.accent};
+    color: ${({ theme }) => theme.colors.text.primary};
+  }
+`
+
+const DayChip = styled.button<{ $active?: boolean }>`
+  width: 44px;
+  height: 28px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  border: 1px solid
+    ${({ $active, theme }) =>
+      $active ? theme.colors.border.accent : theme.colors.border.default};
+  background: ${({ $active, theme }) =>
+    $active ? theme.colors.accentMuted : 'transparent'};
+  color: ${({ $active, theme }) =>
+    $active ? theme.colors.accent : theme.colors.text.muted};
+  font-size: ${({ theme }) => theme.font.size.xs};
+  transition: all ${({ theme }) => theme.transition.fast};
+
+  &:hover {
+    border-color: ${({ theme }) => theme.colors.border.accent};
+    color: ${({ theme }) => theme.colors.text.primary};
+  }
+`
+
+const RecurrenceHint = styled.span`
+  color: ${({ theme }) => theme.colors.text.muted};
+  font-size: ${({ theme }) => theme.font.size.xs};
+
+  b {
+    color: ${({ theme }) => theme.colors.text.primary};
+  }
+`
+
 const DateTimeInput = styled.input`
   padding: 8px 12px;
   background: ${({ theme }) => theme.colors.bg.input};
@@ -336,11 +399,65 @@ const DiscardBtn = styled.button`
   }
 `
 
+type RepeatMode = 'none' | 'daily' | 'weekly'
+
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+// Recurrence guardrails: cap both the series length and how far ahead it goes.
+const RECURRENCE_MAX_POSTS = 30
+const RECURRENCE_HORIZON_DAYS = 42
+
+// Format a Date for <input type="datetime-local"> in the user's local time.
+function toLocalInputValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  )
+}
+
+// Concrete upcoming instants for the chosen repeat rule. Occurrences are
+// generated on this device so every post fires at the picked wall-clock time
+// in the user's own timezone.
+function buildOccurrences(
+  startStr: string,
+  mode: RepeatMode,
+  days: number[]
+): string[] {
+  if (mode === 'none') return []
+  if (mode === 'weekly' && days.length === 0) return []
+
+  const start = new Date(startStr)
+  if (Number.isNaN(start.getTime())) return []
+
+  const wanted = new Set(days)
+  const out: string[] = []
+  for (
+    let offset = 0;
+    offset <= RECURRENCE_HORIZON_DAYS && out.length < RECURRENCE_MAX_POSTS;
+    offset++
+  ) {
+    // Calendar-day stepping preserves the picked clock time across DST shifts.
+    const d = new Date(
+      start.getFullYear(),
+      start.getMonth(),
+      start.getDate() + offset,
+      start.getHours(),
+      start.getMinutes()
+    )
+    const hitsDay = mode === 'daily' || wanted.has(d.getDay())
+    if (hitsDay && d.getTime() > Date.now()) out.push(d.toISOString())
+  }
+  return out
+}
+
 export default function MessageComposer() {
   const [content, setContent] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
   const [showSchedulePicker, setShowSchedulePicker] = useState(false)
   const [scheduledAt, setScheduledAt] = useState('')
+  const [repeatMode, setRepeatMode] = useState<RepeatMode>('none')
+  const [repeatDays, setRepeatDays] = useState<number[]>([])
   const [mediaFile, setMediaFile] = useState<File | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -372,6 +489,8 @@ export default function MessageComposer() {
   const reset = () => {
     setContent('')
     setScheduledAt('')
+    setRepeatMode('none')
+    setRepeatDays([])
     setMediaFile(null)
     setShowSchedulePicker(false)
     setIsExpanded(false)
@@ -399,17 +518,22 @@ export default function MessageComposer() {
     !uploadMedia.isPending &&
     !publishPost.isPending
 
-  // Create → (attach media) → publish / leave scheduled.
+  // Create → (attach media to every occurrence) → publish / leave scheduled.
   const submit = async (scheduleIso: string | null) => {
     if (!canSend || !selectedChannelId || editingPost) return
     try {
-      const { post } = await createPost.mutateAsync({
+      const useSeries = !!scheduleIso && occurrences.length > 0
+      const { post, posts: created } = await createPost.mutateAsync({
         channelId: selectedChannelId,
         content: content.trim(),
         scheduledAt: scheduleIso,
+        ...(useSeries ? { occurrences } : {}),
       })
       if (mediaFile) {
-        await uploadMedia.mutateAsync({ postId: post.id, file: mediaFile })
+        const targetIds = created?.length ? created.map((p) => p.id) : [post.id]
+        for (const id of targetIds) {
+          await uploadMedia.mutateAsync({ postId: id, file: mediaFile })
+        }
       }
       if (!scheduleIso) {
         await publishPost.mutateAsync(post.id)
@@ -459,6 +583,25 @@ export default function MessageComposer() {
 
   const busy =
     createPost.isPending || uploadMedia.isPending || publishPost.isPending
+
+  // Concrete occurrences for the picked repeat rule (empty → single post).
+  const occurrences =
+    repeatMode !== 'none'
+      ? buildOccurrences(scheduledAt, repeatMode, repeatDays)
+      : []
+  const recurrenceSpanDays =
+    occurrences.length > 1
+      ? Math.round(
+          (Date.parse(occurrences[occurrences.length - 1]) -
+            Date.parse(occurrences[0])) /
+            86_400_000
+        )
+      : 0
+
+  const canConfirmSchedule =
+    !!scheduledAt &&
+    !busy &&
+    (repeatMode === 'none' || occurrences.length > 0)
 
   // ─── Edit mode: update an existing draft/scheduled/failed post ──────────────
   if (editingPost) {
@@ -565,7 +708,13 @@ export default function MessageComposer() {
                 {error && <ErrorText>{error}</ErrorText>}
                 <ScheduleBtn
                   $active={showSchedulePicker}
-                  onClick={() => setShowSchedulePicker((v) => !v)}
+                  onClick={() => {
+                    // Opening the picker defaults to the current date & time.
+                    if (!showSchedulePicker && !scheduledAt) {
+                      setScheduledAt(toLocalInputValue(new Date()))
+                    }
+                    setShowSchedulePicker((v) => !v)
+                  }}
                   disabled={!selectedChannelId}
                   id="composer-schedule-btn"
                 >
@@ -583,24 +732,93 @@ export default function MessageComposer() {
             </ToolbarRow>
 
             {showSchedulePicker && (
-              <ScheduleRow>
-                <DateTimeInput
-                  type="datetime-local"
-                  value={scheduledAt}
-                  onChange={(e) => setScheduledAt(e.target.value)}
-                  id="composer-schedule-input"
-                />
-                <ConfirmScheduleBtn
-                  $disabled={!scheduledAt || busy}
-                  onClick={() => {
-                    if (!scheduledAt) return
-                    void submit(new Date(scheduledAt).toISOString())
-                  }}
-                  id="composer-schedule-confirm"
-                >
-                  Confirm Schedule
-                </ConfirmScheduleBtn>
-              </ScheduleRow>
+              <>
+                <ScheduleRow>
+                  <DateTimeInput
+                    type="datetime-local"
+                    value={scheduledAt}
+                    onChange={(e) => setScheduledAt(e.target.value)}
+                    id="composer-schedule-input"
+                  />
+                  <ConfirmScheduleBtn
+                    $disabled={!canConfirmSchedule}
+                    onClick={() => {
+                      if (!scheduledAt) return
+                      void submit(new Date(scheduledAt).toISOString())
+                    }}
+                    id="composer-schedule-confirm"
+                  >
+                    Confirm Schedule
+                  </ConfirmScheduleBtn>
+                </ScheduleRow>
+
+                <RepeatRow>
+                  <RepeatLabel>🔁 Repeat</RepeatLabel>
+                  <ModeChip
+                    $active={repeatMode === 'none'}
+                    onClick={() => setRepeatMode('none')}
+                    id="repeat-off-btn"
+                  >
+                    Off
+                  </ModeChip>
+                  <ModeChip
+                    $active={repeatMode === 'daily'}
+                    onClick={() => setRepeatMode('daily')}
+                    id="repeat-daily-btn"
+                  >
+                    Daily
+                  </ModeChip>
+                  <ModeChip
+                    $active={repeatMode === 'weekly'}
+                    onClick={() => setRepeatMode('weekly')}
+                    id="repeat-custom-btn"
+                  >
+                    Custom days
+                  </ModeChip>
+                </RepeatRow>
+
+                {repeatMode === 'weekly' && (
+                  <RepeatRow>
+                    {WEEKDAY_LABELS.map((label, day) => (
+                      <DayChip
+                        key={label}
+                        $active={repeatDays.includes(day)}
+                        onClick={() =>
+                          setRepeatDays((prev) =>
+                            prev.includes(day)
+                              ? prev.filter((d) => d !== day)
+                              : [...prev, day].sort((a, b) => a - b)
+                          )
+                        }
+                        title={label}
+                      >
+                        {label}
+                      </DayChip>
+                    ))}
+                  </RepeatRow>
+                )}
+
+                {repeatMode !== 'none' && (
+                  <RepeatRow>
+                    {occurrences.length > 0 ? (
+                      <RecurrenceHint>
+                        Creates{' '}
+                        <b>{occurrences.length}</b>{' '}
+                        {occurrences.length === 1 ? 'post' : 'posts'}
+                        {recurrenceSpanDays > 0
+                          ? ` over the next ${recurrenceSpanDays} days`
+                          : ''}{' '}
+                        — perfect for consistent routines &amp; announcements.
+                      </RecurrenceHint>
+                    ) : (
+                      <RecurrenceHint>
+                        Choose an upcoming time
+                        {repeatMode === 'weekly' ? ' on the selected days' : ''}.
+                      </RecurrenceHint>
+                    )}
+                  </RepeatRow>
+                )}
+              </>
             )}
           </ExpandedArea>
         </>

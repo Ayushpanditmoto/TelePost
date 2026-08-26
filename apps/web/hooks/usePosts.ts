@@ -21,6 +21,8 @@ export interface Post {
   errorMessage: string | null
   retryCount: number
   telegramMessageId: number | null
+  /** Shared by all upcoming occurrences of a recurring schedule. */
+  seriesId?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -59,7 +61,7 @@ function invalidatePosts(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ['posts'] })
 }
 
-// Create a draft, or a scheduled post when scheduledAt is provided.
+// Create a draft, a scheduled post, or a recurring series of scheduled posts.
 export function useCreatePost() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -67,13 +69,16 @@ export function useCreatePost() {
       channelId: string
       content: string
       scheduledAt?: string | null
+      /** Pre-computed ISO datetimes — one per recurring occurrence. */
+      occurrences?: string[]
     }) => {
       const body: Record<string, unknown> = {
         channelId: input.channelId,
         content: input.content,
       }
       if (input.scheduledAt) body.scheduledAt = input.scheduledAt
-      return api<{ post: Post }>('/api/posts', {
+      if (input.occurrences?.length) body.occurrences = input.occurrences
+      return api<{ post: Post; posts?: Post[] }>('/api/posts', {
         method: 'POST',
         body: JSON.stringify(body),
       })
@@ -103,7 +108,10 @@ export function useCancelPost() {
 export function useDeletePost() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => api(`/api/posts/${id}`, { method: 'DELETE' }),
+    mutationFn: ({ id, scope }: { id: string; scope?: 'series' }) =>
+      api(`/api/posts/${id}${scope === 'series' ? '?scope=series' : ''}`, {
+        method: 'DELETE',
+      }),
     onSuccess: () => invalidatePosts(queryClient),
   })
 }

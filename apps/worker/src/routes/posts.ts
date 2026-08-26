@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { createDb } from '../db'
 import { postMedia, posts, telegramChannels } from '@telepost/db'
 import type { HonoEnv, SessionUser } from '../types'
@@ -25,6 +25,7 @@ function toPublicPost(row: PostRow) {
     errorMessage: row.errorMessage,
     retryCount: row.retryCount,
     telegramMessageId: row.telegramMessageId,
+    seriesId: row.seriesId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -82,18 +83,24 @@ async function ownedPostOrError(c: Context<HonoEnv>, user: SessionUser, postId: 
   return { ok: true as const, post, db }
 }
 
-// Enforce plan cap before scheduling another post.
-async function scheduleCapOk(c: Context<HonoEnv>, userId: string) {
+// Enforce plan cap before scheduling more posts. `additional` counts how many
+// new scheduled rows this request will create (1 normally, N for recurrences).
+async function scheduleCapOk(
+  c: Context<HonoEnv>,
+  userId: string,
+  additional = 1
+) {
   const db = createDb(c.env.DB)
   const plan = await getUserPlan(db, userId)
   // No plan record or unlimited (0) → allow.
   if (!plan || plan.maxScheduledPosts === 0) return { ok: true as const }
 
   const used = await countUserScheduledPosts(db, userId)
-  if (used >= plan.maxScheduledPosts) {
+  if (used + additional > plan.maxScheduledPosts) {
+    const remaining = Math.max(0, plan.maxScheduledPosts - used)
     return {
       ok: false as const,
-      error: `Plan limit reached (${plan.maxScheduledPosts} scheduled posts). Upgrade for more.`,
+      error: `Plan limit reached (${plan.maxScheduledPosts} scheduled posts — ${remaining} slots left). Upgrade for more.`,
     }
   }
   return { ok: true as const }
@@ -120,12 +127,18 @@ postRoutes.get('/', async (c) => {
   return c.json({ posts: rows.map(toPublicPost) })
 })
 
-// POST /api/posts — create a draft, or schedule directly when scheduledAt given.
+// POST /api/posts — create a draft, a scheduled post, or a recurring series
+// (`occurrences` = pre-computed ISO datetimes, one DB row per occurrence).
 postRoutes.post('/', async (c) => {
   const user = await requireAuth(c)
   const body = (
     await c.req
-      .json<{ channelId?: unknown; content?: unknown; scheduledAt?: unknown }>()
+      .json<{
+        channelId?: unknown
+        content?: unknown
+        scheduledAt?: unknown
+        occurrences?: unknown
+      }>()
       .catch(() => null)
   ) ?? {}
 
@@ -147,8 +160,41 @@ postRoutes.post('/', async (c) => {
 
   let scheduledAt: string | null = null
   let status: PostRow['status'] = 'draft'
+  let occurrenceIsos: string[] | null = null
 
-  if (body.scheduledAt !== undefined && body.scheduledAt !== null) {
+  if (body.occurrences !== undefined && body.occurrences !== null) {
+    if (!Array.isArray(body.occurrences)) {
+      return c.json({ error: 'occurrences must be an array of ISO date strings' }, 400)
+    }
+    const MAX_OCCURRENCES = 60
+    const list = body.occurrences as unknown[]
+    if (list.length < 1 || list.length > MAX_OCCURRENCES) {
+      return c.json(
+        { error: `occurrences must contain between 1 and ${MAX_OCCURRENCES} dates` },
+        400
+      )
+    }
+    const isos: string[] = []
+    let lastMs = 0
+    for (let i = 0; i < list.length; i++) {
+      const parsed = parseFutureDate(list[i])
+      if (!parsed.ok) {
+        return c.json({ error: `occurrences[${i}]: ${parsed.error}` }, 400)
+      }
+      if (new Date(parsed.iso).getTime() <= lastMs) {
+        return c.json(
+          { error: 'occurrences must be unique and in ascending order' },
+          400
+        )
+      }
+      lastMs = new Date(parsed.iso).getTime()
+      isos.push(parsed.iso)
+    }
+    occurrenceIsos = isos
+
+    const cap = await scheduleCapOk(c, user.id, isos.length)
+    if (!cap.ok) return c.json({ error: cap.error }, 403)
+  } else if (body.scheduledAt !== undefined && body.scheduledAt !== null) {
     const parsed = parseFutureDate(body.scheduledAt)
     if (!parsed.ok) return c.json({ error: parsed.error }, 400)
 
@@ -160,21 +206,48 @@ postRoutes.post('/', async (c) => {
   }
 
   const db = createDb(c.env.DB)
-  const inserted = await db
-    .insert(posts)
-    .values({
+
+  let rows: Array<typeof posts.$inferInsert>
+  if (occurrenceIsos) {
+    const seriesId = crypto.randomUUID()
+    rows = occurrenceIsos.map((iso) => ({
       userId: user.id,
       channelId,
       content: trimmed,
-      status,
-      scheduledAt,
-    })
-    .returning()
+      status: 'scheduled' as PostRow['status'],
+      scheduledAt: iso,
+      seriesId,
+    }))
+  } else {
+    rows = [
+      {
+        userId: user.id,
+        channelId,
+        content: trimmed,
+        status,
+        scheduledAt,
+      },
+    ]
+  }
+
+  // Chunked inserts keep each statement under D1's bound-parameter limit.
+  const CHUNK_SIZE = 10
+  const inserted: PostRow[] = []
+  for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+    const chunk = rows.slice(i, i + CHUNK_SIZE)
+    inserted.push(...(await db.insert(posts).values(chunk).returning()))
+  }
 
   const post = inserted[0]
   if (!post) return c.json({ error: 'Failed to create post' }, 500)
 
-  return c.json({ post: toPublicPost(post) }, 201)
+  return c.json(
+    {
+      post: toPublicPost(post),
+      ...(inserted.length > 1 ? { posts: inserted.map(toPublicPost) } : {}),
+    },
+    201
+  )
 })
 
 // GET /api/posts/:id
@@ -249,31 +322,46 @@ postRoutes.patch('/:id', async (c) => {
 // DELETE /api/posts/:id — remove the post from TelePost's database only.
 // The published Telegram message is intentionally left untouched: deleting a
 // record here never reaches the live channel. Publishing-in-flight is locked.
+// `?scope=series` additionally deletes every not-yet-delivered sibling of a
+// recurring series ("stop repeats") while keeping published history intact.
 postRoutes.delete('/:id', async (c) => {
   const user = await requireAuth(c)
   const check = await ownedPostOrError(c, user, c.req.param('id'))
   if (!check.ok) return c.json({ error: check.error }, check.status)
   const { post } = check
 
-  const db = createDb(c.env.DB)
-
   if (post.status === 'publishing') {
     return c.json({ error: 'Cannot delete a post while it is being published' }, 409)
   }
 
-  // Best-effort cleanup of any media blobs attached to this post before the
-  // row goes away (postMedia rows cascade-delete with it).
-  const mediaRows = await db
-    .select()
-    .from(postMedia)
-    .where(eq(postMedia.postId, post.id))
+  const db = createDb(c.env.DB)
+
+  let targets: PostRow[] = [post]
+  const seriesId = post.seriesId
+  if (c.req.query('scope') === 'series' && seriesId) {
+    const siblings = await db
+      .select()
+      .from(posts)
+      .where(and(eq(posts.userId, user.id), eq(posts.seriesId, seriesId)))
+    targets = siblings.filter((row) => row.status !== 'publishing')
+  }
+
+  // Best-effort cleanup of any media blobs attached to these posts before the
+  // rows go away (postMedia rows cascade-delete with them).
+  const mediaRows =
+    targets.length > 0
+      ? await db
+          .select()
+          .from(postMedia)
+          .where(inArray(postMedia.postId, targets.map((t) => t.id)))
+      : []
   await Promise.allSettled(
     mediaRows.map((m) => c.env.MEDIA_BUCKET.delete(m.r2Key))
   )
 
-  await db.delete(posts).where(eq(posts.id, post.id))
+  await db.delete(posts).where(inArray(posts.id, targets.map((t) => t.id)))
 
-  return c.json({ success: true })
+  return c.json({ success: true, deleted: targets.length })
 })
 
 // POST /api/posts/:id/publish — enqueue for immediate publishing.

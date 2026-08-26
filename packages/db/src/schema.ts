@@ -160,6 +160,8 @@ export const posts = sqliteTable(
     retryCount: integer('retry_count').notNull().default(0),
     idempotencyKey: text('idempotency_key').unique(),
     telegramMessageId: integer('telegram_message_id'),
+    // Recurring series: upcoming occurrences of a repeating schedule share this id.
+    seriesId: text('series_id'),
     ...timestamps,
   },
   (t) => ({
@@ -167,6 +169,7 @@ export const posts = sqliteTable(
     channelIdIdx: index('posts_channel_id_idx').on(t.channelId),
     statusIdx: index('posts_status_idx').on(t.status),
     scheduledAtIdx: index('posts_scheduled_at_idx').on(t.scheduledAt),
+    seriesIdIdx: index('posts_series_id_idx').on(t.seriesId),
   })
 )
 
