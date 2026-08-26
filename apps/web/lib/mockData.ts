@@ -31,11 +31,11 @@ export const MOCK_POSTS: MockPost[] = [
     content:
       '📈 BTC is approaching yesterday\'s high at $68,420.\n\nWatch for a breakout above this level — if confirmed, next target is $70,000.\n\nRSI is at 67, momentum still bullish. Set alerts at $68,500.',
     status: 'scheduled',
-    scheduledAt: new Date(Date.now() + 1000 * 60 * 30).toISOString(),
+    scheduledAt: '2026-08-26T05:30:00.000Z',
     publishedAt: null,
     hasMedia: true,
     mediaType: 'image',
-    createdAt: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
+    createdAt: '2026-08-26T04:50:00.000Z',
   },
   {
     id: 'post_2',
@@ -44,9 +44,9 @@ export const MOCK_POSTS: MockPost[] = [
       '📊 Daily Trading Recap\n\nMarket closed green today. BTC +3.2%, ETH +4.1%, SOL +6.8%.\n\nTotal volume was above average — institutional buying patterns detected across the board.\n\nTomorrow\'s key levels: BTC support at $66,800.',
     status: 'published',
     scheduledAt: null,
-    publishedAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
+    publishedAt: '2026-08-26T02:00:00.000Z',
     hasMedia: false,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
+    createdAt: '2026-08-26T01:00:00.000Z',
   },
   {
     id: 'post_3',
@@ -57,7 +57,7 @@ export const MOCK_POSTS: MockPost[] = [
     scheduledAt: null,
     publishedAt: null,
     hasMedia: false,
-    createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+    createdAt: '2026-08-26T04:00:00.000Z',
   },
   {
     id: 'post_4',
@@ -65,11 +65,11 @@ export const MOCK_POSTS: MockPost[] = [
     content:
       '🚨 Market Alert\n\nBTC flash crashed to $64,200 in the last hour. This appears to be a liquidation cascade.\n\nRemain calm. Support at $63,500 is critical.',
     status: 'failed',
-    scheduledAt: new Date(Date.now() - 1000 * 60 * 20).toISOString(),
+    scheduledAt: '2026-08-26T03:30:00.000Z',
     publishedAt: null,
     hasMedia: false,
     errorMessage: 'Bot API error: 403 Forbidden — bot is not an administrator of the channel.',
-    createdAt: new Date(Date.now() - 1000 * 60 * 40).toISOString(),
+    createdAt: '2026-08-26T03:00:00.000Z',
   },
   {
     id: 'post_5',
@@ -77,12 +77,46 @@ export const MOCK_POSTS: MockPost[] = [
     content:
       '📅 Weekly Market Outlook\n\nKey events this week:\n• Monday: US CPI data\n• Wednesday: Fed minutes release\n• Friday: Options expiry ($2.1B BTC)\n\nExpect volatility. Trade with caution.',
     status: 'scheduled',
-    scheduledAt: new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString(),
+    scheduledAt: '2026-08-27T05:00:00.000Z',
     publishedAt: null,
     hasMedia: false,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+    createdAt: '2026-08-26T03:00:00.000Z',
+  },
+  {
+    id: 'post_6',
+    channelId: 'channel_2',
+    content:
+      '📉 SOL showing weakness below $145. Key support at $140 — a break could see $130 tested.\n\nWatch volume closely before entering.',
+    status: 'scheduled',
+    scheduledAt: '2026-08-26T06:00:00.000Z',
+    publishedAt: null,
+    hasMedia: false,
+    createdAt: '2026-08-26T04:30:00.000Z',
+  },
+  {
+    id: 'post_7',
+    channelId: 'channel_2',
+    content:
+      '✅ Signal closed in profit!\n\nBTC/USDT long from $66,400 → closed at $68,200.\nProfit: +2.7% | R:R achieved: 1:2.8\n\nGood trade, team. 🎯',
+    status: 'published',
+    scheduledAt: null,
+    publishedAt: '2026-08-25T18:00:00.000Z',
+    hasMedia: false,
+    createdAt: '2026-08-25T17:45:00.000Z',
+  },
+  {
+    id: 'post_8',
+    channelId: 'channel_3',
+    content:
+      '🗞️ Morning Briefing\n\nTop headlines:\n• Fed signals rate cut in September\n• Apple hits $3.5T market cap\n• Oil drops 2% on demand fears\n\nMore updates throughout the day.',
+    status: 'published',
+    scheduledAt: null,
+    publishedAt: '2026-08-26T03:00:00.000Z',
+    hasMedia: false,
+    createdAt: '2026-08-26T02:45:00.000Z',
   },
 ]
+
 
 export function formatPostTime(post: MockPost): string {
   const date =
