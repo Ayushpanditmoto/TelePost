@@ -11,7 +11,8 @@ export const webhookRoutes = new Hono<HonoEnv>()
 // POST /api/bot  — Telegram webhook
 // Handles /start login_<nonceId>: creates the user, issues a session, consumes
 // the nonce, and DMs a confirmation. Other messages get a helpful reply.
-webhookRoutes.post('/bot', async (c) => {
+// (Mounted at app.route('/api/bot', ...), so the handler lives on '/'.)
+webhookRoutes.post('/', async (c) => {
   const secret = c.req.header('x-telegram-bot-api-secret-token')
   if (!secret || secret !== c.env.TELEGRAM_WEBHOOK_SECRET) {
     return c.json({ error: 'Unauthorized' }, 401)
