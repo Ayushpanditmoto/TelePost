@@ -128,9 +128,9 @@ const FilterChip = styled.button<{ $active?: boolean }>`
   `}
 `
 
-// Telegram-style doodle wallpaper tile (pure SVG data URI, ~zero bytes cost).
-const WALLPAPER =
-  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='170' height='170'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='0.045' stroke-width='1.5'%3E%3Cpath d='M22 28l38 17-38 11z'/%3E%3Ccircle cx='112' cy='26' r='9'/%3E%3Crect x='98' y='58' width='34' height='24' rx='9'/%3E%3Cpath d='M36 96h30a6 6 0 0 1 6 6v10a6 6 0 0 1-6 6H50l-9 8v-8h-5a6 6 0 0 1-6-6v-10a6 6 0 0 1 6-6z'/%3E%3Cpath d='M116 104l4.5 9 10 1.5-7 7 1.5 10-9-5-9 5 1.5-10-7-7 10-1.5z'/%3E%3Ccircle cx='30' cy='140' r='5'/%3E%3C/g%3E%3C/svg%3E\")"
+// Official Telegram chat doodle pattern (white strokes, 7% opacity baked into
+// the file), served from /public and tiled over a colorful chat-theme gradient.
+const WALLPAPER = 'url("/telegram-pattern.svg")'
 
 const Feed = styled.div`
   flex: 1;
@@ -140,14 +140,27 @@ const Feed = styled.div`
   flex-direction: column;
   align-items: flex-start;
   gap: ${({ theme }) => theme.spacing.xs};
-  background-color: ${({ theme }) => theme.colors.bg.primary};
+  /* Top-to-bottom layers: doodle tile → accent washes → solid chat gradient */
+  background-color: #101b28;
   background-image:
+    ${WALLPAPER},
     radial-gradient(
-      900px 480px at 75% -10%,
-      rgba(33, 150, 243, 0.08),
+      900px 480px at 78% -10%,
+      rgba(33, 150, 243, 0.22),
       transparent 60%
     ),
-    ${WALLPAPER};
+    radial-gradient(
+      820px 480px at -5% 108%,
+      rgba(124, 77, 255, 0.16),
+      transparent 62%
+    ),
+    linear-gradient(215deg, #1e3050 0%, #152232 46%, #1a2940 100%);
+  background-size:
+    640px auto,
+    auto,
+    auto,
+    auto;
+  background-repeat: repeat, no-repeat, no-repeat, no-repeat;
 `
 
 const DateSeparator = styled.div`
