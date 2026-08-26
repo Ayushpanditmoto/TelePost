@@ -3,7 +3,9 @@
 import React from 'react'
 import styled from 'styled-components'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useDashboardStore } from '@/store/dashboardStore'
+import { useMe, useLogout } from '@/hooks/useAuth'
 import { MOCK_CHANNELS } from '@/lib/mockData'
 
 const Panel = styled.aside`
@@ -242,11 +244,39 @@ const UserPlan = styled.div`
   color: ${({ theme }) => theme.colors.accent};
 `
 
+const LogoutBtn = styled.button`
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ theme }) => theme.colors.text.muted};
+  font-size: 14px;
+  flex-shrink: 0;
+  transition: all ${({ theme }) => theme.transition.fast};
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.status.failed};
+    background: ${({ theme }) => theme.colors.status.failedBg};
+  }
+`
+
 const AVATAR_COLORS = ['#2196f3', '#9c27b0', '#f44336', '#4caf50', '#ff9800']
 
 export default function LeftPanel() {
+  const router = useRouter()
   const { selectedChannelId, setSelectedChannelId, clearSelectedPost } =
     useDashboardStore()
+  const { data: user } = useMe()
+  const logout = useLogout()
+  const [loggingOut, setLoggingOut] = React.useState(false)
+
+  const handleLogout = async () => {
+    setLoggingOut(true)
+    await logout()
+    router.replace('/login')
+  }
 
   const handleChannelClick = (id: string) => {
     setSelectedChannelId(id)
@@ -313,11 +343,19 @@ export default function LeftPanel() {
       </ScrollArea>
 
       <UserSection>
-        <UserAvatar>A</UserAvatar>
+        <UserAvatar>{(user?.displayName ?? 'A').charAt(0).toUpperCase()}</UserAvatar>
         <UserInfo>
-          <UserName>@username</UserName>
-          <UserPlan>Pro Plan</UserPlan>
+          <UserName>@{user?.username ?? 'username'}</UserName>
+          <UserPlan>Free Plan</UserPlan>
         </UserInfo>
+        <LogoutBtn
+          onClick={handleLogout}
+          title="Log out"
+          id="logout-btn"
+          disabled={loggingOut}
+        >
+          ⎋
+        </LogoutBtn>
       </UserSection>
     </Panel>
   )

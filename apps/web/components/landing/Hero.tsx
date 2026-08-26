@@ -415,9 +415,11 @@ export default function Hero() {
       </Subheading>
 
       <CTAGroup>
-        <PrimaryBtn id="hero-get-started-btn">
-          ✈ Get Started Free
-        </PrimaryBtn>
+        <Link href="/login" passHref legacyBehavior>
+          <PrimaryBtn as="a" id="hero-get-started-btn">
+            ✈ Get Started Free
+          </PrimaryBtn>
+        </Link>
         <SecondaryBtn href="#pricing" id="hero-view-plans-btn">
           View Plans →
         </SecondaryBtn>

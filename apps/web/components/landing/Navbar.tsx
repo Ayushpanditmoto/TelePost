@@ -148,10 +148,12 @@ export default function Navbar() {
         </NavLinks>
 
         <NavActions>
-          <TelegramLoginBtn id="navbar-login-btn">
-            <TelegramIcon />
-            Login with Telegram
-          </TelegramLoginBtn>
+          <Link href="/login" passHref legacyBehavior>
+            <TelegramLoginBtn as="a" id="navbar-login-btn">
+              <TelegramIcon />
+              Login with Telegram
+            </TelegramLoginBtn>
+          </Link>
         </NavActions>
       </Inner>
     </Nav>

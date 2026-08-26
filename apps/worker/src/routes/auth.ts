@@ -93,6 +93,52 @@ authRoutes.get('/me', async (c) => {
   return c.json({ user })
 })
 
+// POST /api/auth/dev — local-development-only login that skips Telegram hash
+// verification so the frontend can be built/tested without a registered bot
+// domain. Refuses outside development.
+authRoutes.post('/dev', async (c) => {
+  if (c.env.ENVIRONMENT === 'production') {
+    return c.json({ error: 'Not found' }, 404)
+  }
+
+  const body = (
+    await c.req
+      .json<{ username?: unknown; displayName?: unknown; telegramId?: unknown }>()
+      .catch(() => null)
+  ) ?? {}
+
+  const telegramId =
+    typeof body.telegramId === 'number' && Number.isSafeInteger(body.telegramId) && body.telegramId > 0
+      ? body.telegramId
+      : 42424242
+  const username = typeof body.username === 'string' && body.username.trim() ? body.username.trim().replace(/^@/, '') : 'devuser'
+  const displayName = typeof body.displayName === 'string' && body.displayName.trim() ? body.displayName.trim() : 'Dev User'
+
+  const db = createDb(c.env.DB)
+  const existing = await db.select().from(users).where(eq(users.telegramId, telegramId)).limit(1)
+
+  let row = existing[0]
+  if (!row) {
+    const inserted = await db
+      .insert(users)
+      .values({ telegramId, telegramUsername: username, displayName })
+      .returning()
+    row = inserted[0]
+  }
+  if (!row) return c.json({ error: 'Failed to create dev user' }, 500)
+
+  await createSession(c, row.id)
+
+  return c.json({
+    user: {
+      id: row.id,
+      telegramId: row.telegramId,
+      username: row.telegramUsername,
+      displayName: row.displayName,
+    },
+  })
+})
+
 // POST /api/auth/logout — destroy the session and clear the cookie.
 authRoutes.post('/logout', async (c) => {
   const sessionId = parseCookies(c.req.header('Cookie'))[SESSION_COOKIE] ?? null
