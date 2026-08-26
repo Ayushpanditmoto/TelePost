@@ -257,15 +257,39 @@ export const sessions = sqliteTable(
       .default(sql`(datetime('now'))`),
     expiresAt: text('expires_at').notNull(),
   },
-  (t) => ({
+    (t) => ({
     userIdIdx: index('sessions_user_id_idx').on(t.userId),
     expiresAtIdx: index('sessions_expires_at_idx').on(t.expiresAt),
+  })
+)
+
+// ─── Login nonces (Telegram "Start" login flow) ──────────────────────────────
+
+export const authNonces = sqliteTable(
+  'auth_nonces',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    sessionId: text('session_id'), // populated once the bot sees /start
+    userId: text('user_id'),
+    consumedAt: text('consumed_at'),
+    expiresAt: text('expires_at')
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (t) => ({
+    expiresAtIdx: index('auth_nonces_expires_at_idx').on(t.expiresAt),
   })
 )
 
 // ─── Type Exports ────────────────────────────────────────────────────────────
 
 export type Session = typeof sessions.$inferSelect
+export type AuthNonce = typeof authNonces.$inferSelect
 export type User = typeof users.$inferSelect
 export type Plan = typeof plans.$inferSelect
 export type Subscription = typeof subscriptions.$inferSelect

@@ -6,8 +6,9 @@ export interface Env {
   APP_URL?: string
   /** Comma-separated list of origins allowed to call the API. Falls back to APP_URL when unset. */
   CORS_ORIGINS?: string
-  TOKEN_ENCRYPTION_KEY: string
+    TOKEN_ENCRYPTION_KEY: string
   TELEGRAM_BOT_TOKEN: string
+  TELEGRAM_WEBHOOK_SECRET: string
   SESSION_SECRET: string
 }
 

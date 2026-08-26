@@ -6,7 +6,8 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "migrate:local": "wrangler d1 migrations apply telepost-db --local",
-    "migrate:remote": "wrangler d1 migrations apply telepost-db"
+    "migrate:remote": "wrangler d1 migrations apply telepost-db",
+    "webhook": "node scripts/register-webhook.mjs"
   },
   "dependencies": {
     "@telepost/db": "*",

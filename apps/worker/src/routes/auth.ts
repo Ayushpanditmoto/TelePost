@@ -1,89 +1,64 @@
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { createDb } from '../db'
-import { users } from '@telepost/db'
+import { users, authNonces } from '@telepost/db'
 import type { HonoEnv } from '../types'
-import { verifyTelegramAuth } from '../lib/telegramAuth'
 import {
-  SESSION_COOKIE,
   createSession,
   destroySession,
   getSessionUser,
+  findOrCreateUser,
+  consumeNonce,
+  SESSION_COOKIE,
+  cookieBase,
 } from '../lib/auth'
-import { parseCookies } from '../lib/cookies'
+import { parseCookies, serializeCookie } from '../lib/cookies'
 
 export const authRoutes = new Hono<HonoEnv>()
 
-// POST /api/auth/telegram
-// Verify the Telegram Login Widget payload, create/find the user, and issue a
-// session cookie. Body may be JSON or application/x-www-form-urlencoded.
-authRoutes.post('/telegram', async (c) => {
-  let fields: Record<string, unknown>
-  const contentType = c.req.header('Content-Type') ?? ''
-
-  if (contentType.includes('application/x-www-form-urlencoded')) {
-    fields = await c.req
-      .parseBody()
-      .then((r) =>
-        Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v as unknown]))
-      )
-      .catch(() => ({}))
-  } else {
-    fields = (await c.req.json<Record<string, unknown>>().catch(() => null)) ?? {}
-  }
-
-  const verified = await verifyTelegramAuth(fields, c.env.TELEGRAM_BOT_TOKEN)
-  if (!verified.ok) {
-    return c.json({ error: verified.error }, 401)
-  }
-
-  const v = verified.user
+// POST /api/auth/telegram/start
+// Create a one-time login nonce and return the bot deep-link the frontend opens
+// so the user clicks "Start" in Telegram. Avoids the phone-number prompt.
+authRoutes.post('/telegram/start', async (c) => {
+  const nonceId = crypto.randomUUID()
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 10).toISOString() // 10 min
   const db = createDb(c.env.DB)
+  await db.insert(authNonces).values({ id: nonceId, expiresAt })
 
-  const existing = await db
+  const { getMe } = await import('../lib/telegram')
+  const me = await getMe(c.env.TELEGRAM_BOT_TOKEN)
+  const botUsername = me.ok ? me.result.username : 'Panditfxbot'
+
+  const startLink = `https://t.me/${botUsername}?start=login_${nonceId}`
+
+  return c.json({ startLink, nonceId })
+})
+
+// GET /api/auth/telegram/start/status?nonce_id=xxx
+// Polls: 202 pending / 200 complete / 404 expired.
+authRoutes.get('/telegram/start/status', async (c) => {
+  const nonceId = c.req.query('nonce_id')
+  if (!nonceId) return c.json({ error: 'nonce_id required' }, 400)
+
+  const db = createDb(c.env.DB)
+  const row = await db
     .select()
-    .from(users)
-    .where(eq(users.telegramId, v.telegramId))
+    .from(authNonces)
+    .where(eq(authNonces.id, nonceId))
     .limit(1)
+    .then((r) => r[0])
 
-  let row = existing[0]
-  if (row) {
-    const updated = await db
-      .update(users)
-      .set({
-        telegramUsername: v.username ?? row.telegramUsername,
-        displayName: v.displayName,
-        avatarUrl: v.avatarUrl ?? row.avatarUrl,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(users.id, row.id))
-      .returning()
-    row = updated[0] ?? row
-  } else {
-    const inserted = await db
-      .insert(users)
-      .values({
-        telegramId: v.telegramId,
-        telegramUsername: v.username,
-        displayName: v.displayName,
-        avatarUrl: v.avatarUrl,
-      })
-      .returning()
-    row = inserted[0]
-  }
+  if (!row) return c.json({ status: 'expired' }, 404)
+  if (!row.sessionId || !row.userId) return c.json({ status: 'pending' }, 202)
 
-  if (!row) return c.json({ error: 'Failed to create user' }, 500)
+  // The bot already issued a session in /start. Hand that session id to the
+  // browser as its cookie so the web app is now logged in.
+  c.header(
+    'Set-Cookie',
+    serializeCookie(SESSION_COOKIE, row.sessionId, cookieBase(c.env))
+  )
 
-  await createSession(c, row.id)
-
-  return c.json({
-    user: {
-      id: row.id,
-      telegramId: row.telegramId,
-      username: row.telegramUsername,
-      displayName: row.displayName,
-    },
-  })
+  return c.json({ status: 'complete', user: { id: row.userId } })
 })
 
 // GET /api/auth/me — return the authenticated user, if any.
@@ -93,9 +68,7 @@ authRoutes.get('/me', async (c) => {
   return c.json({ user })
 })
 
-// POST /api/auth/dev — local-development-only login that skips Telegram hash
-// verification so the frontend can be built/tested without a registered bot
-// domain. Refuses outside development.
+// POST /api/auth/dev — local-development-only login (refuses in production).
 authRoutes.post('/dev', async (c) => {
   if (c.env.ENVIRONMENT === 'production') {
     return c.json({ error: 'Not found' }, 404)

@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import type { Context, MiddlewareHandler } from 'hono'
 import { HTTPException } from 'hono/http-exception'
 import { createDb, type Db } from '../db'
-import { users, sessions } from '@telepost/db'
+import { users, sessions, authNonces } from '@telepost/db'
 import type { Env, HonoEnv, SessionUser } from '../types'
 import { parseCookies, serializeCookie, serializeClearCookie } from './cookies'
 
@@ -14,17 +14,22 @@ function isSecure(env: Env): boolean {
   return env.ENVIRONMENT !== 'development'
 }
 
-function cookieBase(env: Env) {
+export function cookieBase(env: Env): CookieOptions {
   const isProd = isSecure(env)
   return {
     httpOnly: true,
     secure: isProd,
-    // The frontend (vercel.app) and API (workers.dev) are cross-site, so the
-    // session cookie must be None+Secure for credentialed cross-origin requests.
-    // In local dev (same-site localhost) Lax is sufficient and more conservative.
     sameSite: isProd ? ('None' as const) : ('Lax' as const),
     path: '/',
   }
+}
+
+interface CookieOptions {
+  maxAge?: number
+  path?: string
+  httpOnly?: boolean
+  secure?: boolean
+  sameSite?: 'Lax' | 'Strict' | 'None'
 }
 
 function makeSessionDb(c: Context<HonoEnv>): Db {
@@ -100,4 +105,55 @@ export async function requireAuth(
     throw new HTTPException(401, { res: c.json({ error: 'Unauthorized' }, 401) })
   }
   return user
+}
+
+// Upsert a Telegram user and return the row.
+export async function findOrCreateUser(
+  db: Db,
+  telegramId: number,
+  username: string | null,
+  displayName: string,
+  avatarUrl: string | null
+): Promise<typeof users.$inferSelect> {
+  const existing = await db
+    .select()
+    .from(users)
+    .where(eq(users.telegramId, telegramId))
+    .limit(1)
+
+  if (existing[0]) {
+    const row = existing[0]
+    await db
+      .update(users)
+      .set({
+        telegramUsername: username ?? row.telegramUsername,
+        displayName,
+        avatarUrl: avatarUrl ?? row.avatarUrl,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(users.id, row.id))
+    return row
+  }
+
+  const inserted = await db
+    .insert(users)
+    .values({ telegramId, telegramUsername: username, displayName, avatarUrl })
+    .returning()
+  return inserted[0]!
+}
+
+// Mark a login nonce as consumed (optionally attaching the resulting session/user).
+export async function consumeNonce(
+  db: Db,
+  nonceId: string,
+  params: { sessionId?: string; userId?: string }
+): Promise<void> {
+  await db
+    .update(authNonces)
+    .set({
+      sessionId: params.sessionId,
+      userId: params.userId,
+      consumedAt: new Date().toISOString(),
+    })
+    .where(eq(authNonces.id, nonceId))
 }
