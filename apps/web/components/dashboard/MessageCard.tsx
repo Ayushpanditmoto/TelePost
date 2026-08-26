@@ -1,10 +1,10 @@
-'use client'
+"use client";
 
-import React from 'react'
-import styled from 'styled-components'
-import { useDashboardStore } from '@/store/dashboardStore'
-import type { Post } from '@/hooks/usePosts'
-import { formatPostTime } from '@/lib/mockData'
+import React from "react";
+import styled from "styled-components";
+import { useDashboardStore } from "@/store/dashboardStore";
+import type { Post } from "@/hooks/usePosts";
+import { formatPostTime } from "@/lib/mockData";
 
 const Card = styled.article<{ $selected: boolean; $status: string }>`
   background: ${({ $selected, theme }) =>
@@ -13,45 +13,23 @@ const Card = styled.article<{ $selected: boolean; $status: string }>`
   padding: 10px 14px 8px;
   margin: 2px 12px;
   cursor: pointer;
-  border: 1px solid ${({ $selected, theme }) =>
-    $selected ? theme.colors.border.accent : 'transparent'};
-  transition: background ${({ theme }) => theme.transition.fast},
+  border: 1px solid
+    ${({ $selected, theme }) =>
+      $selected ? theme.colors.border.accent : "transparent"};
+  transition:
+    background ${({ theme }) => theme.transition.fast},
     border-color ${({ theme }) => theme.transition.fast},
     transform ${({ theme }) => theme.transition.fast};
   position: relative;
 
   &:hover {
     background: ${({ $selected, theme }) =>
-      $selected ? theme.colors.bg.messageSelected : theme.colors.bg.messageHover};
+      $selected
+        ? theme.colors.bg.messageSelected
+        : theme.colors.bg.messageHover};
     transform: translateX(2px);
   }
-`
-
-const MediaPlaceholder = styled.div`
-  width: 100%;
-  height: 140px;
-  border-radius: ${({ theme }) => theme.radius.sm};
-  background: ${({ theme }) => theme.colors.bg.tertiary};
-  margin-bottom: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: ${({ theme }) => theme.colors.text.muted};
-  font-size: 32px;
-  overflow: hidden;
-  position: relative;
-
-  &::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      to bottom,
-      transparent 60%,
-      rgba(24, 37, 51, 0.6)
-    );
-  }
-`
+`;
 
 const Content = styled.p`
   font-size: ${({ theme }) => theme.font.size.sm};
@@ -63,14 +41,14 @@ const Content = styled.p`
   -webkit-line-clamp: 5;
   -webkit-box-orient: vertical;
   overflow: hidden;
-`
+`;
 
 const Meta = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-top: 6px;
-`
+`;
 
 const StatusBadge = styled.span<{ $status: string }>`
   display: inline-flex;
@@ -83,34 +61,34 @@ const StatusBadge = styled.span<{ $status: string }>`
 
   ${({ $status, theme }) => {
     switch ($status) {
-      case 'scheduled':
+      case "scheduled":
         return `
           color: ${theme.colors.status.scheduled};
           background: ${theme.colors.status.scheduledBg};
-        `
-      case 'published':
+        `;
+      case "published":
         return `
           color: ${theme.colors.status.published};
           background: ${theme.colors.status.publishedBg};
-        `
-      case 'failed':
+        `;
+      case "failed":
         return `
           color: ${theme.colors.status.failed};
           background: ${theme.colors.status.failedBg};
-        `
-      case 'draft':
+        `;
+      case "draft":
         return `
           color: ${theme.colors.status.draft};
           background: ${theme.colors.status.draftBg};
-        `
+        `;
       default:
         return `
           color: ${theme.colors.text.muted};
           background: transparent;
-        `
+        `;
     }
   }}
-`
+`;
 
 const Timestamp = styled.time`
   font-size: ${({ theme }) => theme.font.size.xs};
@@ -118,32 +96,32 @@ const Timestamp = styled.time`
   display: flex;
   align-items: center;
   gap: 4px;
-`
+`;
 
 const STATUS_LABELS: Record<string, string> = {
-  scheduled: '🕐 Scheduled',
-  published: '✓ Published',
-  failed: '✕ Failed',
-  draft: '○ Draft',
-  publishing: '⟳ Publishing',
-  cancelled: '— Cancelled',
-}
+  scheduled: "🕐 Scheduled",
+  published: "✓ Published",
+  failed: "✕ Failed",
+  draft: "○ Draft",
+  publishing: "⟳ Publishing",
+  cancelled: "— Cancelled",
+};
 
 interface MessageCardProps {
-  post: Post
+  post: Post;
 }
 
 export default function MessageCard({ post }: MessageCardProps) {
-  const { selectedPostId, setSelectedPostId } = useDashboardStore()
-  const isSelected = selectedPostId === post.id
+  const { selectedPostId, setSelectedPostId } = useDashboardStore();
+  const isSelected = selectedPostId === post.id;
 
   const handleClick = () => {
     if (isSelected) {
-      setSelectedPostId(null)
+      setSelectedPostId(null);
     } else {
-      setSelectedPostId(post.id)
+      setSelectedPostId(post.id);
     }
-  }
+  };
 
   return (
     <Card
@@ -158,10 +136,12 @@ export default function MessageCard({ post }: MessageCardProps) {
         <StatusBadge $status={post.status}>
           {STATUS_LABELS[post.status] ?? post.status}
         </StatusBadge>
-        <Timestamp dateTime={post.scheduledAt ?? post.publishedAt ?? post.createdAt}>
+        <Timestamp
+          dateTime={post.scheduledAt ?? post.publishedAt ?? post.createdAt}
+        >
           {formatPostTime(post)}
         </Timestamp>
       </Meta>
     </Card>
-  )
+  );
 }
