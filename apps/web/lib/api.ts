@@ -1,6 +1,14 @@
 // Typed fetch wrapper for the TelePost worker API.
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ?? 'http://localhost:8787'
+// Normalise the configured base so it never ends with a trailing slash AND never
+// carries a stray `/api` segment — all request paths already begin with `/api/...`,
+// so a base like `https://...workers.dev/api` would otherwise double up to
+// `.../api/api/...` and 404.
+const API_BASE =
+  (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787')
+    .replace(/\/+$/, '')
+    .replace(/\/api$/, '')
+
+export const API_URL = API_BASE
 
 export interface SessionUser {
   id: string

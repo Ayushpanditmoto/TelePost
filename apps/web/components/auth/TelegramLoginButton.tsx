@@ -4,7 +4,7 @@ import React, { useState } from 'react'
 import styled from 'styled-components'
 import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
-import { api } from '@/lib/api'
+import { api, API_URL } from '@/lib/api'
 
 // Bot username from BotFather (set NEXT_PUBLIC_TELEGRAM_BOT_USERNAME).
 const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'Panditfxbot'
@@ -73,7 +73,7 @@ export default function TelegramLoginButton() {
       const interval = setInterval(async () => {
         try {
           const res = await fetch(
-            `${process.env.NEXT_PUBLIC_API_URL || ''}/api/auth/telegram/start/status?nonce_id=${nonceId}`,
+            `${API_URL}/api/auth/telegram/start/status?nonce_id=${nonceId}`,
             { method: 'GET', credentials: 'include' }
           )
           if (res.ok) {
