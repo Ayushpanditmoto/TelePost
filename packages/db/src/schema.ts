@@ -243,8 +243,29 @@ export const postAnalytics = sqliteTable(
   })
 )
 
+// ─── Sessions ────────────────────────────────────────────────────────────────
+
+export const sessions = sqliteTable(
+  'sessions',
+  {
+    id: text('id').notNull().primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    expiresAt: text('expires_at').notNull(),
+  },
+  (t) => ({
+    userIdIdx: index('sessions_user_id_idx').on(t.userId),
+    expiresAtIdx: index('sessions_expires_at_idx').on(t.expiresAt),
+  })
+)
+
 // ─── Type Exports ────────────────────────────────────────────────────────────
 
+export type Session = typeof sessions.$inferSelect
 export type User = typeof users.$inferSelect
 export type Plan = typeof plans.$inferSelect
 export type Subscription = typeof subscriptions.$inferSelect

@@ -1,5 +1,13 @@
 import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
 import Providers from './providers'
+
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-inter',
+})
 
 export const metadata: Metadata = {
   title: 'TelePost — Schedule Your Telegram Content',
@@ -20,15 +28,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body>
+      <head />
+      <body className={inter.variable} suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -321,7 +321,7 @@ const PreviewFeed = styled.div`
 
 const PreviewCard = styled.div<{ $highlighted?: boolean }>`
   background: ${({ $highlighted, theme }) =>
-    $highlighted ? theme.colors.messageSelected : theme.colors.bg.message};
+    $highlighted ? theme.colors.bg.messageSelected : theme.colors.bg.message};
   border-radius: ${({ theme }) => theme.radius.md};
   padding: 10px 12px;
   border: 1px solid ${({ $highlighted, theme }) =>

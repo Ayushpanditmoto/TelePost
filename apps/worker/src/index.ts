@@ -7,6 +7,7 @@ import { channelRoutes } from './routes/channels'
 import { postRoutes } from './routes/posts'
 import { planRoutes } from './routes/plans'
 import { adminRoutes } from './routes/admin'
+import { sessionMiddleware } from './lib/auth'
 import type { Env } from './types'
 
 const app = new Hono<{ Bindings: Env }>()
@@ -22,6 +23,8 @@ app.use(
     credentials: true,
   })
 )
+// Populate c.get('user') from the session cookie for all API routes.
+app.use('/api/*', sessionMiddleware())
 
 // Health check
 app.get('/api/health', (c) => {

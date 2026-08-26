@@ -1,9 +1,9 @@
 import { createGlobalStyle } from 'styled-components'
 import type { Theme } from './theme'
 
-const GlobalStyle = createGlobalStyle<{ theme: Theme }>`
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
+// `theme` is injected by the ThemeProvider so it must be allowed to be absent
+// when GlobalStyle is rendered (making it required causes TS2741).
+const GlobalStyle = createGlobalStyle<{ theme?: Theme }>`
   *, *::before, *::after {
     box-sizing: border-box;
     margin: 0;

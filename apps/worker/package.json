@@ -9,6 +9,7 @@
     "migrate:remote": "wrangler d1 migrations apply telepost-db"
   },
   "dependencies": {
+    "@telepost/db": "*",
     "hono": "^4.4.0",
     "drizzle-orm": "^0.30.0"
   },

@@ -14,3 +14,11 @@ export interface SessionUser {
   username: string | null
   displayName: string
 }
+
+// Combined Hono environment: Cloudflare bindings + authenticated request user.
+export interface HonoEnv {
+  Bindings: Env
+  Variables: {
+    user?: SessionUser
+  }
+}

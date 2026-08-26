@@ -53,7 +53,7 @@ export const theme = {
     full: '9999px',
   },
   font: {
-    family: `'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`,
+    family: `var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`,
     size: {
       xs: '11px',
       sm: '13px',
