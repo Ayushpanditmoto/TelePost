@@ -128,10 +128,6 @@ const FilterChip = styled.button<{ $active?: boolean }>`
   `}
 `
 
-// Official Telegram chat doodle pattern (white strokes, 7% opacity baked into
-// the file), served from /public and tiled over a colorful chat-theme gradient.
-const WALLPAPER = 'url("/telegram-pattern.svg")'
-
 const Feed = styled.div`
   flex: 1;
   overflow-y: auto;
@@ -140,27 +136,8 @@ const Feed = styled.div`
   flex-direction: column;
   align-items: flex-start;
   gap: ${({ theme }) => theme.spacing.xs};
-  /* Top-to-bottom layers: doodle tile → accent washes → solid chat gradient */
   background-color: #101b28;
-  background-image:
-    ${WALLPAPER},
-    radial-gradient(
-      900px 480px at 78% -10%,
-      rgba(33, 150, 243, 0.22),
-      transparent 60%
-    ),
-    radial-gradient(
-      820px 480px at -5% 108%,
-      rgba(124, 77, 255, 0.16),
-      transparent 62%
-    ),
-    linear-gradient(215deg, #1e3050 0%, #152232 46%, #1a2940 100%);
-  background-size:
-    640px auto,
-    auto,
-    auto,
-    auto;
-  background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+  background-image: url('/telegram-pattern.svg');
 `
 
 const DateSeparator = styled.div`

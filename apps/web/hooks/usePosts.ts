@@ -52,7 +52,10 @@ export function usePosts(channelId: string | null | undefined) {
 }
 
 // Attach an image/video to an existing draft/scheduled post (R2 upload).
+// Invalidates posts so bubbles re-render with the attachment right away —
+// the composer uploads media *after* creating the post.
 export function useUploadMedia() {
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ postId, file }: { postId: string; file: File }) => {
       const form = new FormData()
@@ -62,6 +65,7 @@ export function useUploadMedia() {
         body: form,
       })
     },
+    onSuccess: () => invalidatePosts(queryClient),
   })
 }
 
