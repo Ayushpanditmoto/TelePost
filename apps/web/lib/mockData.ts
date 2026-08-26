@@ -124,13 +124,26 @@ export interface PostTimestamps {
   createdAt: string
 }
 
+// Parse a timestamp from the API. `scheduled_at`/`published_at` are written as
+// full ISO strings with a Z suffix, but DB-defaulted columns (created_at,
+// updated_at, …) come back as bare "YYYY-MM-DD HH:MM:SS" — UTC without a
+// marker. Without the fix below, browsers parse those as LOCAL time and show
+// them hours off. Treat any timezone-less stamp as UTC.
+export function dbDate(input: string | null | undefined): Date | null {
+  if (!input) return null
+  const s =
+    /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(input) ? `${input}Z` : input
+  const d = new Date(s)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
 export function formatPostTime(post: PostTimestamps): string {
   const date =
-    post.publishedAt
-      ? new Date(post.publishedAt)
-      : post.scheduledAt
-      ? new Date(post.scheduledAt)
-      : new Date(post.createdAt)
+    dbDate(post.publishedAt) ??
+    dbDate(post.scheduledAt) ??
+    dbDate(post.createdAt)
+
+  if (!date) return '—'
 
   return date.toLocaleTimeString('en-US', {
     hour: 'numeric',
@@ -140,12 +153,8 @@ export function formatPostTime(post: PostTimestamps): string {
 }
 
 export function formatPostDate(post: PostTimestamps): string {
-  const date =
-    post.scheduledAt
-      ? new Date(post.scheduledAt)
-      : post.publishedAt
-      ? new Date(post.publishedAt)
-      : new Date(post.createdAt)
+  const date = dbDate(post.scheduledAt) ?? dbDate(post.publishedAt) ?? dbDate(post.createdAt)
+  if (!date) return '—'
 
   const now = new Date()
   const isToday = date.toDateString() === now.toDateString()

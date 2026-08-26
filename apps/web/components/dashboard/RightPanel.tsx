@@ -5,7 +5,7 @@ import styled, { keyframes } from 'styled-components'
 import { useQuery } from '@tanstack/react-query'
 import { useDashboardStore } from '@/store/dashboardStore'
 import { api } from '@/lib/api'
-import { formatPostDate } from '@/lib/mockData'
+import { dbDate, formatPostDate } from '@/lib/mockData'
 import { useChannels } from '@/hooks/useChannels'
 import {
   type Post,
@@ -352,10 +352,10 @@ export default function RightPanel() {
           <Section>
             <SectionTitle>Published At</SectionTitle>
             <SectionValue>
-              {new Date(post.publishedAt).toLocaleString('en-US', {
+              {dbDate(post.publishedAt)?.toLocaleString('en-US', {
                 month: 'short', day: 'numeric',
                 hour: 'numeric', minute: '2-digit', hour12: true
-              })}
+              }) ?? '—'}
             </SectionValue>
           </Section>
         )}
@@ -363,10 +363,10 @@ export default function RightPanel() {
         <Section>
           <SectionTitle>Created</SectionTitle>
           <SectionValue>
-            {new Date(post.createdAt).toLocaleString('en-US', {
+            {dbDate(post.createdAt)?.toLocaleString('en-US', {
               month: 'short', day: 'numeric',
               hour: 'numeric', minute: '2-digit', hour12: true
-            })}
+            }) ?? '—'}
           </SectionValue>
         </Section>
 
