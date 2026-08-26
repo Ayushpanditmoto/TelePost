@@ -130,12 +130,16 @@ const FilterChip = styled.button<{ $active?: boolean }>`
 
 const Feed = styled.div`
   flex: 1;
+  /* min-height: 0 lets the Feed shrink below its content inside the 100vh
+     flex column — without it overflow-y never engages and it clips instead. */
+  min-height: 0;
   overflow-y: auto;
-  padding: ${({ theme }) => theme.spacing.md} 0;
+  overflow-x: hidden;
+  padding: ${({ theme }) => theme.spacing.md} 0 ${({ theme }) => theme.spacing.lg};
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: ${({ theme }) => theme.spacing.xs};
+  gap: ${({ theme }) => theme.spacing.sm};
   background-color: #101b28;
   background-image: url('/telegram-pattern.svg');
 `
