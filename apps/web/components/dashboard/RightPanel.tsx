@@ -432,6 +432,13 @@ export default function RightPanel() {
             >
               Cancel Post
             </DangerAction>
+            <DangerAction
+              id="action-delete"
+              onClick={() => runAction(() => deletePost.mutateAsync(post.id))}
+              disabled={deletePost.isPending}
+            >
+              🗑 Delete
+            </DangerAction>
           </>
         )}
         {post.status === 'draft' && (
@@ -448,16 +455,34 @@ export default function RightPanel() {
               onClick={() => runAction(() => deletePost.mutateAsync(post.id))}
               disabled={deletePost.isPending}
             >
-              Delete
+              🗑 Delete
             </DangerAction>
           </>
+        )}
+        {post.status === 'cancelled' && (
+          <DangerAction
+            id="action-delete"
+            onClick={() => runAction(() => deletePost.mutateAsync(post.id))}
+            disabled={deletePost.isPending}
+          >
+            🗑 Delete
+          </DangerAction>
         )}
         {post.status === 'published' && (
           <DangerAction
             id="action-delete"
-            title="Published posts cannot be deleted via the API"
+            onClick={() => {
+              if (
+                window.confirm(
+                  'Delete this message from your Telegram channel as well?'
+                )
+              ) {
+                runAction(() => deletePost.mutateAsync(post.id))
+              }
+            }}
+            disabled={deletePost.isPending}
           >
-            Delete
+            {deletePost.isPending ? 'Deleting…' : '🗑 Delete (also from Telegram)'}
           </DangerAction>
         )}
         {post.status === 'failed' && (

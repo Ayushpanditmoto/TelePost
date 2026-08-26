@@ -130,3 +130,16 @@ export function sendMessage(
     ...opts,
   })
 }
+
+// Delete a previously sent message (bots may delete their own messages in
+// channels/supergroups where they are admins, within 48 hours of posting).
+export function deleteMessage(
+  token: string,
+  chatId: string,
+  messageId: number
+): Promise<TelegramResponse<true>> {
+  return callTelegram<true>(token, 'deleteMessage', {
+    chat_id: chatId,
+    message_id: messageId,
+  })
+}

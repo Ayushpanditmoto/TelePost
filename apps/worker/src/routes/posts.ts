@@ -8,6 +8,7 @@ import { requireAuth } from '../lib/auth'
 import { countUserScheduledPosts, getUserPlan } from '../lib/planLimits'
 import { claimPostForPublish } from '../lib/publish'
 import { processPublishMessage } from '../lib/publisher'
+import { deleteMessage } from '../lib/telegram'
 import { MAX_MEDIA_SIZE_BYTES, uploadPostMedia } from '../lib/media'
 
 export const postRoutes = new Hono<HonoEnv>()
@@ -234,16 +235,45 @@ postRoutes.patch('/:id', async (c) => {
   return c.json({ post: updated ? toPublicPost(updated) : toPublicPost(post) })
 })
 
-// DELETE /api/posts/:id
+// DELETE /api/posts/:id — remove a post. For published posts this ALSO deletes
+// the message from the Telegram channel (bot admin, within Telegram's 48-hour
+// deletion window). Cancelled/failed posts delete cleanly; publishing is locked.
 postRoutes.delete('/:id', async (c) => {
   const user = await requireAuth(c)
   const check = await ownedPostOrError(c, user, c.req.param('id'))
   if (!check.ok) return c.json({ error: check.error }, check.status)
-  if (!EDITABLE_STATUSES.has(check.post.status)) {
-    return c.json({ error: `Cannot delete a ${check.post.status} post` }, 409)
+  const { post } = check
+
+  const db = createDb(c.env.DB)
+
+  if (post.status === 'publishing') {
+    return c.json({ error: 'Cannot delete a post while it is being published' }, 409)
   }
 
-  await check.db.delete(posts).where(eq(posts.id, check.post.id))
+  // A live message in Telegram? Remove it there first so we never orphan one.
+  if (post.status === 'published' && post.telegramMessageId) {
+    const [channel] = await db
+      .select()
+      .from(telegramChannels)
+      .where(eq(telegramChannels.id, post.channelId))
+      .limit(1)
+    if (!channel) return c.json({ error: 'Channel no longer exists' }, 409)
+
+    const res = await deleteMessage(
+      c.env.TELEGRAM_BOT_TOKEN,
+      channel.telegramChatId,
+      post.telegramMessageId
+    )
+    if (!res.ok) {
+      const desc = res.description ?? 'Unknown Telegram error'
+      const hint = /can't be deleted|48/i.test(desc)
+        ? ' — Telegram only lets bots delete messages within 48 hours of posting'
+        : ''
+      return c.json({ error: `Telegram refused: ${desc}${hint}` }, 409)
+    }
+  }
+
+  await db.delete(posts).where(eq(posts.id, post.id))
 
   return c.json({ success: true })
 })
