@@ -233,6 +233,112 @@ const DangerAction = styled.button`
   }
 `
 
+// ─── Shimmer skeleton (post details initial fetch) ───────────────────────────
+const shimmerSweep = keyframes`
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+`
+
+const skeletonIn = keyframes`
+  from { opacity: 0; }
+  to { opacity: 1; }
+`
+
+const Bone = styled.div<{ $w?: string; $h?: string; $round?: string }>`
+  width: ${({ $w }) => $w ?? '100%'};
+  height: ${({ $h }) => $h ?? '12px'};
+  border-radius: ${({ $round }) => $round ?? '6px'};
+  background-color: ${({ theme }) => theme.colors.bg.tertiary};
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 35%,
+    rgba(255, 255, 255, 0.13) 50%,
+    rgba(255, 255, 255, 0.05) 65%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: ${shimmerSweep} 1.4s ease-in-out infinite;
+`
+
+const DotBone = styled(Bone)`
+  && {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+`
+
+const SkelRow = styled.div<{ $delay?: string; $spread?: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: ${({ $spread }) => ($spread ? 'space-between' : 'flex-start')};
+  width: 100%;
+  gap: ${({ theme }) => theme.spacing.sm};
+  margin-bottom: ${({ theme }) => theme.spacing.xl};
+  animation: ${skeletonIn} ${({ theme }) => theme.transition.default} ease
+    ${({ $delay }) => $delay ?? '0s'} both;
+`
+
+const SkelStack = styled.div<{ $delay?: string }>`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: ${({ theme }) => theme.spacing.xl};
+  animation: ${skeletonIn} ${({ theme }) => theme.transition.default} ease
+    ${({ $delay }) => $delay ?? '0s'} both;
+`
+
+const SkelCol = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+`
+
+// Mirrors the real details layout: status header, labelled meta sections and
+// the action buttons, so nothing shifts once data arrives.
+function DetailsSkeleton() {
+  return (
+    <div id="details-skeleton">
+      <SkelRow $delay="0s">
+        <DotBone />
+        <SkelCol>
+          <Bone $w="96px" $h="13px" />
+          <Bone $w="150px" $h="10px" />
+        </SkelCol>
+      </SkelRow>
+
+      <SkelStack $delay="0.08s">
+        <Bone $w="74px" $h="9px" $round="5px" />
+        <Bone />
+        <Bone $w="62%" />
+      </SkelStack>
+
+      <SkelStack $delay="0.16s">
+        <Bone $w="62px" $h="9px" $round="5px" />
+        <Bone $w="132px" $h="13px" />
+      </SkelStack>
+
+      <SkelStack $delay="0.24s">
+        <Bone $w="92px" $h="9px" $round="5px" />
+        <Bone $w="164px" $h="13px" />
+      </SkelStack>
+
+      <SkelStack $delay="0.32s">
+        <Bone $w="58px" $h="9px" $round="5px" />
+        <Bone $w="152px" $h="13px" />
+      </SkelStack>
+
+      <SkelRow $delay="0.4s" $spread>
+        <Bone $w="112px" $h="36px" $round="9999px" />
+        <Bone $w="84px" $h="36px" $round="9999px" />
+      </SkelRow>
+    </div>
+  )
+}
+
 export default function RightPanel() {
   const { selectedPostId, setSelectedPostId, clearSelectedPost, setEditingPost } =
     useDashboardStore()
@@ -284,7 +390,7 @@ export default function RightPanel() {
   }, [clearSelectedPost])
 
   if (!selectedPostId) return null
-  if (isLoading || isError || !post) {
+  if (isError) {
     return (
       <Panel $open id="right-panel">
         <PanelHeader>
@@ -292,9 +398,24 @@ export default function RightPanel() {
           <CloseBtn onClick={clearSelectedPost} title="Close (Esc)">✕</CloseBtn>
         </PanelHeader>
         <ScrollArea>
-          <SectionValue>
-            {isError ? 'Could not load this post.' : 'Loading…'}
-          </SectionValue>
+          <SectionValue>Could not load this post.</SectionValue>
+        </ScrollArea>
+      </Panel>
+    )
+  }
+
+  // Fresh fetch (or cache miss): show shimmer bones shaped like the details view.
+  if (isLoading || !post) {
+    return (
+      <Panel $open id="right-panel">
+        <PanelHeader>
+          <PanelTitle>Post Details</PanelTitle>
+          <CloseBtn onClick={clearSelectedPost} id="right-panel-close" title="Close (Esc)">
+            ✕
+          </CloseBtn>
+        </PanelHeader>
+        <ScrollArea>
+          <DetailsSkeleton />
         </ScrollArea>
       </Panel>
     )

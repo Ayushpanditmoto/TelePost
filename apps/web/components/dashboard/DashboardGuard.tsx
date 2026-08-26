@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMe } from '@/hooks/useAuth'
+import LoadingScreen from '@/components/common/LoadingScreen'
 
 // Client-side auth guard: bounces to /login when no session exists.
 export default function DashboardGuard({ children }: { children: React.ReactNode }) {
@@ -16,11 +17,7 @@ export default function DashboardGuard({ children }: { children: React.ReactNode
   }, [isLoading, user, router])
 
   if (isLoading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#708499' }}>
-        Loading…
-      </div>
-    )
+    return <LoadingScreen label="Loading your workspace" />
   }
 
   if (!user) return null
