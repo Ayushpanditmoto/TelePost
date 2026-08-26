@@ -1,7 +1,7 @@
 // Plan limit resolution: uses the user's active subscription, falling back to
 // the seeded Free plan when no subscription exists yet.
-import { and, desc, eq, gt, isNull, or, sql } from 'drizzle-orm'
-import { plans, subscriptions, telegramChannels, type Plan } from '@telepost/db'
+import { and, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm'
+import { plans, posts, subscriptions, telegramChannels, type Plan } from '@telepost/db'
 import type { Db } from '../db'
 
 export async function getUserPlan(db: Db, userId: string): Promise<Plan | null> {
@@ -33,5 +33,17 @@ export async function countUserChannels(db: Db, userId: string): Promise<number>
     .select({ value: sql<number>`count(*)` })
     .from(telegramChannels)
     .where(eq(telegramChannels.userId, userId))
+  return row?.value ?? 0
+}
+
+// Count a user's current scheduled+queued posts (excludes drafts, published, failed, cancelled).
+// Free plan (`maxScheduledPosts=0`) is treated as unlimited, matching the seed.
+export async function countUserScheduledPosts(db: Db, userId: string): Promise<number> {
+  const [row] = await db
+    .select({ value: sql<number>`count(*)` })
+    .from(posts)
+    .where(
+      and(eq(posts.userId, userId), inArray(posts.status, ['scheduled', 'publishing']))
+    )
   return row?.value ?? 0
 }
