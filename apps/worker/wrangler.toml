@@ -10,7 +10,7 @@ APP_URL = "https://telepost.app"
 [[d1_databases]]
 binding = "DB"
 database_name = "telepost-db"
-database_id = "YOUR_D1_DATABASE_ID"
+database_id = "4b8cc808-c650-4b4b-ad31-1acbd3055b12"
 
 [[r2_buckets]]
 binding = "MEDIA_BUCKET"
