@@ -48,6 +48,14 @@ export function usePosts(channelId: string | null | undefined) {
       return data.posts
     },
     staleTime: 1000 * 15,
+    retry: false,
+    // Publish is async server-side (claim → deliver → mark). While any post is
+    // mid-flight, poll briefly so bubbles settle into their terminal state —
+    // otherwise a snapshot of 'publishing' would stick on screen forever.
+    refetchInterval: (query) => {
+      const posts = query.state.data
+      return posts?.some((p) => p.status === 'publishing') ? 1500 : false
+    },
   })
 }
 

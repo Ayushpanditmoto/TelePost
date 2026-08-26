@@ -363,6 +363,10 @@ export default function RightPanel() {
       return data.post
     },
     enabled: !!selectedPostId,
+    // Keep the details panel in sync while its status is transient
+    // (publishing → published/failed happens seconds later server-side).
+    refetchInterval: (query) =>
+      query.state.data?.status === 'publishing' ? 1500 : false,
   })
 
   const channel = channels.find((c) => c.id === post?.channelId)
