@@ -10,6 +10,10 @@ export interface Env {
   TELEGRAM_BOT_TOKEN: string
   TELEGRAM_WEBHOOK_SECRET: string
   SESSION_SECRET: string
+  /** Admin panel login e-mail (matched case-insensitively against /admin login). */
+  ADMIN_EMAIL?: string
+  /** Shared secret required alongside ADMIN_EMAIL to unlock the admin panel. */
+  ADMIN_KEY?: string
 }
 
 export interface SessionUser {
