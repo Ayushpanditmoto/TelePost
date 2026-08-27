@@ -21,6 +21,8 @@ const Panel = styled.main`
   background: ${({ theme }) => theme.colors.bg.primary};
   border-right: 1px solid ${({ theme }) => theme.colors.border.subtle};
   overflow: hidden;
+  /* Required so the absolute-positioned ScrollToBottomBtn is contained here. */
+  position: relative;
 `
 
 const Header = styled.div`
@@ -144,6 +146,11 @@ const Feed = styled.div`
   padding: 0 ${({ theme }) => theme.spacing.lg} ${({ theme }) => theme.spacing.xl};
   display: flex;
   flex-direction: column;
+  /* justify-content: flex-end anchors messages to the bottom of the feed
+     (like Telegram) so short lists don't float at the top. Once the content
+     overflows the flex container, justify-content has no effect and the user
+     can scroll up freely. */
+  justify-content: flex-end;
   align-items: flex-start;
   gap: ${({ theme }) => theme.spacing.sm};
   background-color: #101b28;
@@ -201,9 +208,13 @@ const EmptyDesc = styled.p`
 `
 
 const ScrollToBottomBtn = styled.button<{ $visible?: boolean }>`
-  position: fixed;
+  /* absolute so it's contained inside Panel (position: relative) instead of
+     the viewport — this way it always floats just above the composer bar
+     regardless of how many panels are open side-by-side. */
+  position: absolute;
   right: ${({ theme }) => theme.spacing.lg};
-  bottom: calc(56px + ${({ theme }) => theme.spacing.md}); /* above the composer bar */
+  /* 56px composer height + a little breathing room */
+  bottom: calc(64px + ${({ theme }) => theme.spacing.md});
   z-index: 10;
   width: 36px;
   height: 36px;
@@ -222,7 +233,7 @@ const ScrollToBottomBtn = styled.button<{ $visible?: boolean }>`
   pointer-events: none;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 
-  /* fade-in/festure state */
+  /* visible state */
   ${({ $visible }) =>
     $visible &&
     `
@@ -509,12 +520,15 @@ export default function CenterPanel() {
       }
       viewKeyRef.current = viewKey
       lastPostCount.current = posts.length
+      // Double-rAF: the first frame commits the layout, the second fires after
+      // the browser has actually painted it — guaranteeing scrollHeight is final.
       requestAnimationFrame(() => {
-        feedRef.current?.scrollTo({
-          top: feedRef.current?.scrollHeight ?? 0,
-          behavior: 'auto',
+        requestAnimationFrame(() => {
+          const feed = feedRef.current
+          if (!feed) return
+          feed.scrollTop = feed.scrollHeight
+          setShowScrollBtn(false)
         })
-        setShowScrollBtn(false)
       })
       return
     }
