@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react'
 import styled, { keyframes } from 'styled-components'
 import { useDashboardStore } from '@/store/dashboardStore'
 import { useChannels } from '@/hooks/useChannels'
@@ -451,10 +451,15 @@ export default function CenterPanel() {
   )
   const [activeFilter, setActiveFilter] = React.useState('all')
   const feedRef = useRef<HTMLDivElement>(null)
+  // Invisible div pinned to the bottom of the feed — we call scrollIntoView on
+  // it instead of manually computing scrollHeight, which is unreliable when
+  // images / CSS animations haven't settled yet.
+  const scrollAnchorRef = useRef<HTMLDivElement>(null)
   const [showScrollBtn, setShowScrollBtn] = useState(false)
   const lastPostCount = useRef(0)
-  // Which conversation view the auto-scroll controller is tracking.
   const viewKeyRef = useRef('')
+  // Whether the upcoming render should hard-snap to the bottom.
+  const shouldSnapRef = useRef(true)
 
   const channel = channels.find((c) => c.id === selectedChannelId)
   const channelIndex = channels.findIndex((c) => c.id === selectedChannelId)
@@ -466,24 +471,20 @@ export default function CenterPanel() {
   // Collapse recurring series into single bubbles before rendering.
   const feedItems = useMemo(() => buildFeedItems(posts), [posts])
 
-  // Threshold distance from the bottom (px) within which we consider the user "near bottom"
   const SCROLL_THRESHOLD = 80
 
-  // Check if feed is near the bottom
   const isNearBottom = useCallback(() => {
     const feed = feedRef.current
     if (!feed) return true
     return feed.scrollHeight - feed.scrollTop - feed.clientHeight < SCROLL_THRESHOLD
   }, [])
 
-  // Scroll feed to the bottom
-  const scrollToBottom = useCallback(() => {
-    const feed = feedRef.current
-    if (!feed) return
-    feed.scrollTo({ top: feed.scrollHeight, behavior: 'smooth' })
+  const scrollToBottom = useCallback((smooth = true) => {
+    const anchor = scrollAnchorRef.current
+    if (!anchor) return
+    anchor.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant', block: 'end' })
   }, [])
 
-  // Track scroll position to show/hide the "scroll to bottom" button
   const handleScroll = useCallback(() => {
     if (!feedRef.current) return
     const { scrollHeight, scrollTop, clientHeight } = feedRef.current
@@ -499,58 +500,45 @@ export default function CenterPanel() {
     return () => feed.removeEventListener('scroll', handleScroll)
   }, [handleScroll])
 
-  // Unified auto-scroll controller:
-  //   • entering a view (channel switch, filter change, first resolved load)
-  //     hard-snaps to the bottom so conversations open like Telegram;
-  //   • while reading history, live updates only follow when the user is
-  //     already at the bottom — scrolling up must never get yanked back.
-  useEffect(() => {
-    const prevCount = lastPostCount.current
-    const viewKey = `${selectedChannelId ?? 'all'}:${activeFilter}`
-    const isNewView =
-      viewKeyRef.current !== viewKey ||
-      // First paint of this view once its data resolves (count seeded as 0).
-      (!postsLoading && viewKeyRef.current === viewKey && prevCount === 0)
+  // Decide whether to snap — runs before the effect below so shouldSnapRef is
+  // already updated when useLayoutEffect fires.
+  const viewKey = `${selectedChannelId ?? 'all'}:${activeFilter}`
+  if (viewKeyRef.current !== viewKey) {
+    // Channel or filter changed — always snap on the next settled render.
+    viewKeyRef.current = viewKey
+    lastPostCount.current = 0
+    shouldSnapRef.current = true
+  }
 
-    if (isNewView) {
-      if (postsLoading) {
-        viewKeyRef.current = viewKey
-        lastPostCount.current = 0
-        return
-      }
-      viewKeyRef.current = viewKey
-      lastPostCount.current = posts.length
-      // Double-rAF: the first frame commits the layout, the second fires after
-      // the browser has actually painted it — guaranteeing scrollHeight is final.
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const feed = feedRef.current
-          if (!feed) return
-          feed.scrollTop = feed.scrollHeight
-          setShowScrollBtn(false)
-        })
-      })
+  // useLayoutEffect fires synchronously after DOM mutations, before the browser
+  // paints — this guarantees scrollHeight is final regardless of how data
+  // arrived (fresh fetch, React Query cache hit, or hydration).
+  useLayoutEffect(() => {
+    if (postsLoading) return
+
+    const prevCount = lastPostCount.current
+    const currentCount = posts.length
+
+    if (shouldSnapRef.current) {
+      // Initial load or view change — hard snap to bottom.
+      shouldSnapRef.current = false
+      lastPostCount.current = currentCount
+      scrollToBottom(false)   // instant, no animation
+      setShowScrollBtn(false)
       return
     }
 
-    if (!postsLoading && posts.length !== prevCount) {
-      if (posts.length > prevCount) {
-        // New posts arrived on the open view.
+    if (currentCount !== prevCount) {
+      if (currentCount > prevCount) {
+        // New post arrived while viewing — follow only if already near bottom.
         if (isNearBottom()) scrollToBottom()
-        else requestAnimationFrame(() => setShowScrollBtn(true))
+        else setShowScrollBtn(true)
       } else {
-        requestAnimationFrame(() => setShowScrollBtn(false))
+        setShowScrollBtn(false)
       }
     }
-    lastPostCount.current = postsLoading ? 0 : posts.length
-  }, [
-    posts,
-    postsLoading,
-    activeFilter,
-    selectedChannelId,
-    isNearBottom,
-    scrollToBottom,
-  ])
+    lastPostCount.current = currentCount
+  }, [posts, postsLoading, isNearBottom, scrollToBottom])
 
   return (
     <Panel>
@@ -625,6 +613,10 @@ export default function CenterPanel() {
             <EmptyDesc>Write your first message below</EmptyDesc>
           </EmptyState>
         )}
+        {/* Invisible scroll anchor — scrollIntoView on this is more reliable
+            than manually computing scrollTop = scrollHeight because it works
+            even before images and CSS animations have settled. */}
+        <div ref={scrollAnchorRef} style={{ height: 0, flexShrink: 0 }} aria-hidden="true" />
       </Feed>
 
       <ScrollToBottomBtn
