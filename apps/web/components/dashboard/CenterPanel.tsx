@@ -621,7 +621,7 @@ export default function CenterPanel() {
 
       <ScrollToBottomBtn
         $visible={showScrollBtn}
-        onClick={scrollToBottom}
+        onClick={() => scrollToBottom()}
         title="Scroll to bottom"
         aria-label="Scroll to bottom"
       >
