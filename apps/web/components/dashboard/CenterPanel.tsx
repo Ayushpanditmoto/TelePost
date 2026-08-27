@@ -451,10 +451,6 @@ export default function CenterPanel() {
   )
   const [activeFilter, setActiveFilter] = React.useState('all')
   const feedRef = useRef<HTMLDivElement>(null)
-  // Invisible div pinned to the bottom of the feed — we call scrollIntoView on
-  // it instead of manually computing scrollHeight, which is unreliable when
-  // images / CSS animations haven't settled yet.
-  const scrollAnchorRef = useRef<HTMLDivElement>(null)
   const [showScrollBtn, setShowScrollBtn] = useState(false)
   const lastPostCount = useRef(0)
   const viewKeyRef = useRef('')
@@ -479,10 +475,19 @@ export default function CenterPanel() {
     return feed.scrollHeight - feed.scrollTop - feed.clientHeight < SCROLL_THRESHOLD
   }, [])
 
-  const scrollToBottom = useCallback((smooth = true) => {
-    const anchor = scrollAnchorRef.current
-    if (!anchor) return
-    anchor.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant', block: 'end' })
+  const snapToBottom = useCallback(() => {
+    const feed = feedRef.current
+    if (!feed) return
+    // Direct assignment is synchronous and cannot be "blocked" by the browser
+    // unlike scrollIntoView, which is queued asynchronously.
+    feed.scrollTop = feed.scrollHeight
+    setShowScrollBtn(false)
+  }, [])
+
+  const scrollToBottom = useCallback(() => {
+    const feed = feedRef.current
+    if (!feed) return
+    feed.scrollTo({ top: feed.scrollHeight, behavior: 'smooth' })
   }, [])
 
   const handleScroll = useCallback(() => {
@@ -500,45 +505,40 @@ export default function CenterPanel() {
     return () => feed.removeEventListener('scroll', handleScroll)
   }, [handleScroll])
 
-  // Decide whether to snap — runs before the effect below so shouldSnapRef is
-  // already updated when useLayoutEffect fires.
+  // Track channel/filter changes — mark that the next settled render must snap.
   const viewKey = `${selectedChannelId ?? 'all'}:${activeFilter}`
   if (viewKeyRef.current !== viewKey) {
-    // Channel or filter changed — always snap on the next settled render.
     viewKeyRef.current = viewKey
     lastPostCount.current = 0
     shouldSnapRef.current = true
   }
 
-  // useLayoutEffect fires synchronously after DOM mutations, before the browser
-  // paints — this guarantees scrollHeight is final regardless of how data
-  // arrived (fresh fetch, React Query cache hit, or hydration).
+  // PRIMARY: fires synchronously after DOM update, before browser paint.
+  // Direct scrollTop assignment is reliable here for text content.
   useLayoutEffect(() => {
     if (postsLoading) return
-
-    const prevCount = lastPostCount.current
-    const currentCount = posts.length
-
     if (shouldSnapRef.current) {
-      // Initial load or view change — hard snap to bottom.
-      shouldSnapRef.current = false
-      lastPostCount.current = currentCount
-      scrollToBottom(false)   // instant, no animation
-      setShowScrollBtn(false)
+      snapToBottom()
       return
     }
-
-    if (currentCount !== prevCount) {
-      if (currentCount > prevCount) {
-        // New post arrived while viewing — follow only if already near bottom.
-        if (isNearBottom()) scrollToBottom()
-        else setShowScrollBtn(true)
-      } else {
-        setShowScrollBtn(false)
-      }
-    }
+    const prevCount = lastPostCount.current
+    const currentCount = posts.length
+    if (currentCount > prevCount && isNearBottom()) scrollToBottom()
+    else if (currentCount > prevCount) setShowScrollBtn(true)
+    else if (currentCount < prevCount) setShowScrollBtn(false)
     lastPostCount.current = currentCount
-  }, [posts, postsLoading, isNearBottom, scrollToBottom])
+  }, [posts, postsLoading, snapToBottom, scrollToBottom, isNearBottom])
+
+  // FALLBACK: fires after paint — catches cases where lazy images / web fonts
+  // inflate the feed height after useLayoutEffect already ran.
+  useEffect(() => {
+    if (postsLoading || !shouldSnapRef.current) return
+    shouldSnapRef.current = false
+    lastPostCount.current = posts.length
+    // Run outside this microtask so the browser has committed the paint.
+    const id = setTimeout(() => snapToBottom(), 0)
+    return () => clearTimeout(id)
+  }, [posts, postsLoading, snapToBottom])
 
   return (
     <Panel>
@@ -613,10 +613,7 @@ export default function CenterPanel() {
             <EmptyDesc>Write your first message below</EmptyDesc>
           </EmptyState>
         )}
-        {/* Invisible scroll anchor — scrollIntoView on this is more reliable
-            than manually computing scrollTop = scrollHeight because it works
-            even before images and CSS animations have settled. */}
-        <div ref={scrollAnchorRef} style={{ height: 0, flexShrink: 0 }} aria-hidden="true" />
+        {/* Invisible scroll anchor removed — we use direct scrollTop now */}
       </Feed>
 
       <ScrollToBottomBtn
