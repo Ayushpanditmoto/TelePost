@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import styled, { keyframes } from 'styled-components'
 import { useDashboardStore } from '@/store/dashboardStore'
 import { useChannels } from '@/hooks/useChannels'
@@ -452,11 +452,9 @@ export default function CenterPanel() {
   const [activeFilter, setActiveFilter] = React.useState('all')
   const feedRef = useRef<HTMLDivElement>(null)
   const [showScrollBtn, setShowScrollBtn] = useState(false)
-  const viewKeyRef = useRef('')
-  // True from mount / channel change until we have successfully snapped once.
+  // Set to false whenever the view changes; set to true once we've snapped.
   const hasSnappedRef = useRef(false)
-  // Counts the last rendered post count so we can distinguish live updates
-  // from the initial load completing.
+  // Track post count for live-update follow logic.
   const lastPostCount = useRef(0)
 
   const channel = channels.find((c) => c.id === selectedChannelId)
@@ -477,13 +475,6 @@ export default function CenterPanel() {
     return feed.scrollHeight - feed.scrollTop - feed.clientHeight < SCROLL_THRESHOLD
   }, [])
 
-  const snapToBottom = useCallback(() => {
-    const feed = feedRef.current
-    if (!feed) return
-    feed.scrollTop = feed.scrollHeight
-    setShowScrollBtn(false)
-  }, [])
-
   const scrollToBottom = useCallback(() => {
     const feed = feedRef.current
     if (!feed) return
@@ -496,6 +487,7 @@ export default function CenterPanel() {
     setShowScrollBtn(scrollHeight - scrollTop - clientHeight > SCROLL_THRESHOLD)
   }, [])
 
+  // Attach scroll listener.
   useEffect(() => {
     const feed = feedRef.current
     if (!feed) return
@@ -503,29 +495,47 @@ export default function CenterPanel() {
     return () => feed.removeEventListener('scroll', handleScroll)
   }, [handleScroll])
 
-  // Reset snap tracking when channel or filter changes.
-  const viewKey = `${selectedChannelId ?? 'all'}:${activeFilter}`
-  if (viewKeyRef.current !== viewKey) {
-    viewKeyRef.current = viewKey
+  // ─── Initial snap via MutationObserver ───────────────────────────────────
+  // MutationObserver fires AFTER the browser has committed DOM changes and
+  // computed layout — meaning feed.scrollHeight is always accurate here.
+  // This is immune to every timing issue that useLayoutEffect / rAF suffer:
+  //   • React Query cache-hit (data arrives without postsLoading ever being true)
+  //   • Concurrent-mode deferred rendering
+  //   • Lazy images inflating height after first paint
+  useEffect(() => {
+    const feed = feedRef.current
+    if (!feed) return
+
+    // Reset snap flag for the new view.
     hasSnappedRef.current = false
     lastPostCount.current = 0
-  }
+    setShowScrollBtn(false)
 
-  // ─── Auto-scroll: layer 1 (useLayoutEffect, before paint) ────────────────
-  // Covers the most common case: text content is ready right after React
-  // commits the DOM update.
-  useLayoutEffect(() => {
-    if (postsLoading || posts.length === 0) return
-
-    if (!hasSnappedRef.current) {
-      // First content on this view — snap unconditionally.
+    const trySnap = () => {
+      if (hasSnappedRef.current) return
+      // Only snap once there is actual overflowing content to scroll to.
+      if (feed.scrollHeight <= feed.clientHeight) return
       hasSnappedRef.current = true
-      lastPostCount.current = posts.length
-      snapToBottom()
-      return
+      feed.scrollTop = feed.scrollHeight
     }
 
-    // Live update while feed already has content.
+    // Try immediately in case content is already in the DOM (cache hit).
+    trySnap()
+
+    // Watch for message cards being added (covers async fetch path).
+    const mo = new MutationObserver(trySnap)
+    mo.observe(feed, { childList: true })
+
+    return () => mo.disconnect()
+  // Re-run when the user switches channel or filter.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedChannelId, activeFilter])
+
+  // ─── Live-update follow ───────────────────────────────────────────────────
+  // After the initial snap, when new posts arrive, follow to the bottom only
+  // if the user is already near the bottom (never yank them away from history).
+  useEffect(() => {
+    if (postsLoading || !hasSnappedRef.current) return
     const prevCount = lastPostCount.current
     const currentCount = posts.length
     if (currentCount > prevCount) {
@@ -535,21 +545,7 @@ export default function CenterPanel() {
       setShowScrollBtn(false)
     }
     lastPostCount.current = currentCount
-  }, [posts, postsLoading, snapToBottom, scrollToBottom, isNearBottom])
-
-  // ─── Auto-scroll: layer 2 (useEffect + setTimeout, after paint) ──────────
-  // Safety net: lazy images / web fonts can reflow the feed AFTER layer 1
-  // already ran, making scrollHeight larger. We retry once after the browser
-  // commits the next paint.
-  useEffect(() => {
-    if (postsLoading || posts.length === 0 || hasSnappedRef.current) return
-    // hasSnappedRef is still false — layer 1 hadn't fired yet (e.g. images
-    // inflated layout between the two layers). Snap now.
-    hasSnappedRef.current = true
-    lastPostCount.current = posts.length
-    const id = setTimeout(() => snapToBottom(), 0)
-    return () => clearTimeout(id)
-  }, [posts, postsLoading, snapToBottom])
+  }, [posts, postsLoading, isNearBottom, scrollToBottom])
 
   return (
     <Panel>
