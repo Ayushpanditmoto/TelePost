@@ -19,6 +19,10 @@ const ComposerWrapper = styled.div`
   border-top: 1px solid ${({ theme }) => theme.colors.border.subtle};
   background: ${({ theme }) => theme.colors.bg.secondary};
   padding: ${({ theme }) => theme.spacing.md} ${({ theme }) => theme.spacing.lg};
+  /* Never compete with the chat feed for vertical space — with the default
+     shrink the expanded schedule picker squeezed the feed to an unscrollable
+     sliver on short viewports. */
+  flex-shrink: 0;
 `
 
 const ComposerBar = styled.div`

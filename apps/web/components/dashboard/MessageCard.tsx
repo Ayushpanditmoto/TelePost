@@ -164,6 +164,26 @@ const Timestamp = styled.time`
   gap: 4px;
 `;
 
+// Badge shown when one bubble stands in for a whole recurring series
+// ("Repeat daily" submissions collapse into this instead of N date bubbles).
+const SeriesChip = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+  padding: 3px 10px;
+  border-radius: ${({ theme }) => theme.radius.full};
+  background: ${({ theme }) => theme.colors.accentMuted};
+  color: ${({ theme }) => theme.colors.accent};
+  font-size: ${({ theme }) => theme.font.size.xs};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+
+  .series-extra {
+    color: ${({ theme }) => theme.colors.text.muted};
+    font-weight: ${({ theme }) => theme.font.weight.normal};
+  }
+`;
+
 const STATUS_LABELS: Record<string, string> = {
   scheduled: "🕐 Scheduled",
   published: "✓ Published",
@@ -175,9 +195,11 @@ const STATUS_LABELS: Record<string, string> = {
 
 interface MessageCardProps {
   post: Post;
+  /** Present when this bubble represents a whole recurring series. */
+  series?: { label: string; extra?: string | null } | null;
 }
 
-export default function MessageCard({ post }: MessageCardProps) {
+export default function MessageCard({ post, series }: MessageCardProps) {
   const { selectedPostId, setSelectedPostId } = useDashboardStore();
   const isSelected = selectedPostId === post.id;
   const media = post.media ?? [];
@@ -233,6 +255,15 @@ export default function MessageCard({ post }: MessageCardProps) {
       )}
 
       <Caption $bare={hasMedia && hasText}>
+        {series && (
+          <SeriesChip>
+            <span aria-hidden="true">🔁</span>
+            <span>{series.label}</span>
+            {series.extra && (
+              <span className="series-extra">· {series.extra}</span>
+            )}
+          </SeriesChip>
+        )}
         {hasText && <Content>{post.content}</Content>}
 
         <Meta>

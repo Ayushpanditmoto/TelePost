@@ -1,10 +1,11 @@
 'use client'
 
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import styled, { keyframes } from 'styled-components'
 import { useDashboardStore } from '@/store/dashboardStore'
 import { useChannels } from '@/hooks/useChannels'
-import { usePosts } from '@/hooks/usePosts'
+import { usePosts, type Post } from '@/hooks/usePosts'
+import { dbDate } from '@/lib/mockData'
 import MessageCard from './MessageCard'
 import MessageComposer from './MessageComposer'
 import { ChevronDown } from 'lucide-react'
@@ -13,6 +14,8 @@ const Panel = styled.main`
   flex: 1;
   min-width: 0;
   height: 100vh;
+  /* 100dvh keeps the column sized to the real viewport (mobile toolbars). */
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background: ${({ theme }) => theme.colors.bg.primary};
@@ -135,6 +138,8 @@ const Feed = styled.div`
      flex column — without it overflow-y never engages and it clips instead. */
   min-height: 0;
   overflow-y: auto;
+  /* Keeps wheel/touch momentum from chaining out of the feed once it ends. */
+  overscroll-behavior: contain;
   overflow-x: hidden;
   padding: 0 ${({ theme }) => theme.spacing.lg} ${({ theme }) => theme.spacing.xl};
   display: flex;
@@ -143,7 +148,6 @@ const Feed = styled.div`
   gap: ${({ theme }) => theme.spacing.sm};
   background-color: #101b28;
   background-image: url('/telegram-pattern.svg');
-  scroll-behavior: smooth;
 `
 
 const DateSeparator = styled.div`
@@ -342,6 +346,92 @@ const FILTERS = [
   { label: '✕ Failed', value: 'failed' },
 ]
 
+// ─── Recurring-series collapsing ─────────────────────────────────────────────
+// One "Repeat daily" submission stores one post row per upcoming date (all
+// rows share a series_id). Rendering every row floods the chat with identical
+// bubbles for every date, so all members of a series collapse into a single
+// bubble labelled with the repeat rule, the next run time and how many more
+// runs are queued. Already-published occurrences stay collapsed too — one
+// bubble speaks for the whole routine.
+const MS_PER_DAY = 86_400_000
+
+// "Repeats daily" / "Repeats weekly" / "Repeats custom days", inferred from
+// the gaps between occurrence timestamps (calendar-day stepping means DST can
+// shift raw ms by ±1h, so compare rounded day distances).
+function cadenceLabel(timesAsc: number[]): string {
+  if (timesAsc.length < 2) return 'Repeats custom days'
+  const dayGaps = timesAsc
+    .slice(1)
+    .map((t, i) => Math.round((t - timesAsc[i]) / MS_PER_DAY))
+  if (dayGaps.every((g) => g === 1)) return 'Repeats daily'
+  if (dayGaps.every((g) => g >= 6 && g % 7 === 0)) return 'Repeats weekly'
+  return 'Repeats custom days'
+}
+
+interface FeedItem {
+  /** The bubble's backing row — the next thing that will happen in a series. */
+  post: Post
+  series?: { label: string; extra: string | null }
+}
+
+function buildFeedItems(posts: Post[]): FeedItem[] {
+  const membersBySeries = new Map<string, Post[]>()
+  for (const p of posts) {
+    if (!p.seriesId) continue
+    const list = membersBySeries.get(p.seriesId)
+    if (list) list.push(p)
+    else membersBySeries.set(p.seriesId, [p])
+  }
+
+  const emitted = new Set<string>()
+  const timeOf = (m: Post) =>
+    dbDate(m.scheduledAt)?.getTime() ?? Number.POSITIVE_INFINITY
+
+  const items: FeedItem[] = []
+  for (const p of posts) {
+    if (!p.seriesId) {
+      items.push({ post: p })
+      continue
+    }
+    if (emitted.has(p.seriesId)) continue
+    emitted.add(p.seriesId)
+
+    const members = membersBySeries.get(p.seriesId)!
+    const upcoming = members
+      .filter((m) => m.status === 'scheduled' || m.status === 'publishing')
+      .sort((a, b) => timeOf(a) - timeOf(b))
+
+    // Bubble shows the next scheduled run; once nothing is queued it shows
+    // the most recently delivered occurrence instead.
+    const rep =
+      upcoming[0] ??
+      [...members].sort(
+        (a, b) =>
+          (dbDate(b.publishedAt)?.getTime() ?? 0) -
+          (dbDate(a.publishedAt)?.getTime() ?? 0)
+      )[0] ??
+      p
+
+    const cadence = cadenceLabel(
+      (upcoming.length ? upcoming : members)
+        .filter((m) => m.scheduledAt)
+        .map(timeOf)
+        .sort((a, b) => a - b)
+    )
+    // The rep itself is the next run; the rest of the queue collapses.
+    const remaining = Math.max(upcoming.length - 1, 0)
+
+    items.push({
+      post: rep,
+      series: {
+        label: cadence,
+        extra: remaining > 0 ? `${remaining} more` : null,
+      },
+    })
+  }
+  return items
+}
+
 export default function CenterPanel() {
   const { selectedChannelId } = useDashboardStore()
   const { data: channels = [], isLoading: channelsLoading } = useChannels()
@@ -352,6 +442,8 @@ export default function CenterPanel() {
   const feedRef = useRef<HTMLDivElement>(null)
   const [showScrollBtn, setShowScrollBtn] = useState(false)
   const lastPostCount = useRef(0)
+  // Which conversation view the auto-scroll controller is tracking.
+  const viewKeyRef = useRef('')
 
   const channel = channels.find((c) => c.id === selectedChannelId)
   const channelIndex = channels.findIndex((c) => c.id === selectedChannelId)
@@ -359,6 +451,9 @@ export default function CenterPanel() {
   const posts = allPosts.filter(
     (p) => activeFilter === 'all' || p.status === activeFilter
   )
+
+  // Collapse recurring series into single bubbles before rendering.
+  const feedItems = useMemo(() => buildFeedItems(posts), [posts])
 
   // Threshold distance from the bottom (px) within which we consider the user "near bottom"
   const SCROLL_THRESHOLD = 80
@@ -393,29 +488,55 @@ export default function CenterPanel() {
     return () => feed.removeEventListener('scroll', handleScroll)
   }, [handleScroll])
 
-    // Auto-scroll to bottom when new messages arrive, but only if user is near bottom
+  // Unified auto-scroll controller:
+  //   • entering a view (channel switch, filter change, first resolved load)
+  //     hard-snaps to the bottom so conversations open like Telegram;
+  //   • while reading history, live updates only follow when the user is
+  //     already at the bottom — scrolling up must never get yanked back.
   useEffect(() => {
-    const visiblePosts = postsLoading ? 0 : posts.length
-    if (lastPostCount.current === 0) {
-      // First load — scroll to bottom
-      scrollToBottom()
-    } else if (visiblePosts > lastPostCount.current) {
-      // New posts arrived
-      if (isNearBottom()) {
-        scrollToBottom()
+    const prevCount = lastPostCount.current
+    const viewKey = `${selectedChannelId ?? 'all'}:${activeFilter}`
+    const isNewView =
+      viewKeyRef.current !== viewKey ||
+      // First paint of this view once its data resolves (count seeded as 0).
+      (!postsLoading && viewKeyRef.current === viewKey && prevCount === 0)
+
+    if (isNewView) {
+      if (postsLoading) {
+        viewKeyRef.current = viewKey
+        lastPostCount.current = 0
+        return
+      }
+      viewKeyRef.current = viewKey
+      lastPostCount.current = posts.length
+      requestAnimationFrame(() => {
+        feedRef.current?.scrollTo({
+          top: feedRef.current?.scrollHeight ?? 0,
+          behavior: 'auto',
+        })
+        setShowScrollBtn(false)
+      })
+      return
+    }
+
+    if (!postsLoading && posts.length !== prevCount) {
+      if (posts.length > prevCount) {
+        // New posts arrived on the open view.
+        if (isNearBottom()) scrollToBottom()
+        else requestAnimationFrame(() => setShowScrollBtn(true))
       } else {
-        requestAnimationFrame(() => setShowScrollBtn(true))
+        requestAnimationFrame(() => setShowScrollBtn(false))
       }
     }
-    lastPostCount.current = visiblePosts
-  }, [posts, postsLoading, scrollToBottom, isNearBottom])
-
-  // Reset scroll position and button state when filter changes
-  useEffect(() => {
-    lastPostCount.current = posts.length
-    scrollToBottom()
-    requestAnimationFrame(() => setShowScrollBtn(false))
-  }, [activeFilter, posts.length, scrollToBottom])
+    lastPostCount.current = postsLoading ? 0 : posts.length
+  }, [
+    posts,
+    postsLoading,
+    activeFilter,
+    selectedChannelId,
+    isNearBottom,
+    scrollToBottom,
+  ])
 
   return (
     <Panel>
@@ -475,8 +596,12 @@ export default function CenterPanel() {
               <DateLabel>Today</DateLabel>
               <DateLine />
             </DateSeparator>
-            {posts.map((post) => (
-              <MessageCard key={post.id} post={post} />
+            {feedItems.map((item) => (
+              <MessageCard
+                key={item.post.id}
+                post={item.post}
+                series={item.series}
+              />
             ))}
           </>
         ) : (
