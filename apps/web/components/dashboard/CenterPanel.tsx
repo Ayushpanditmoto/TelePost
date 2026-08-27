@@ -452,10 +452,12 @@ export default function CenterPanel() {
   const [activeFilter, setActiveFilter] = React.useState('all')
   const feedRef = useRef<HTMLDivElement>(null)
   const [showScrollBtn, setShowScrollBtn] = useState(false)
-  const lastPostCount = useRef(0)
   const viewKeyRef = useRef('')
-  // Whether the upcoming render should hard-snap to the bottom.
-  const shouldSnapRef = useRef(true)
+  // True from mount / channel change until we have successfully snapped once.
+  const hasSnappedRef = useRef(false)
+  // Counts the last rendered post count so we can distinguish live updates
+  // from the initial load completing.
+  const lastPostCount = useRef(0)
 
   const channel = channels.find((c) => c.id === selectedChannelId)
   const channelIndex = channels.findIndex((c) => c.id === selectedChannelId)
@@ -478,8 +480,6 @@ export default function CenterPanel() {
   const snapToBottom = useCallback(() => {
     const feed = feedRef.current
     if (!feed) return
-    // Direct assignment is synchronous and cannot be "blocked" by the browser
-    // unlike scrollIntoView, which is queued asynchronously.
     feed.scrollTop = feed.scrollHeight
     setShowScrollBtn(false)
   }, [])
@@ -493,11 +493,9 @@ export default function CenterPanel() {
   const handleScroll = useCallback(() => {
     if (!feedRef.current) return
     const { scrollHeight, scrollTop, clientHeight } = feedRef.current
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight
-    setShowScrollBtn(distanceFromBottom > SCROLL_THRESHOLD)
+    setShowScrollBtn(scrollHeight - scrollTop - clientHeight > SCROLL_THRESHOLD)
   }, [])
 
-  // Attach scroll listener once
   useEffect(() => {
     const feed = feedRef.current
     if (!feed) return
@@ -505,37 +503,50 @@ export default function CenterPanel() {
     return () => feed.removeEventListener('scroll', handleScroll)
   }, [handleScroll])
 
-  // Track channel/filter changes — mark that the next settled render must snap.
+  // Reset snap tracking when channel or filter changes.
   const viewKey = `${selectedChannelId ?? 'all'}:${activeFilter}`
   if (viewKeyRef.current !== viewKey) {
     viewKeyRef.current = viewKey
+    hasSnappedRef.current = false
     lastPostCount.current = 0
-    shouldSnapRef.current = true
   }
 
-  // PRIMARY: fires synchronously after DOM update, before browser paint.
-  // Direct scrollTop assignment is reliable here for text content.
+  // ─── Auto-scroll: layer 1 (useLayoutEffect, before paint) ────────────────
+  // Covers the most common case: text content is ready right after React
+  // commits the DOM update.
   useLayoutEffect(() => {
-    if (postsLoading) return
-    if (shouldSnapRef.current) {
+    if (postsLoading || posts.length === 0) return
+
+    if (!hasSnappedRef.current) {
+      // First content on this view — snap unconditionally.
+      hasSnappedRef.current = true
+      lastPostCount.current = posts.length
       snapToBottom()
       return
     }
+
+    // Live update while feed already has content.
     const prevCount = lastPostCount.current
     const currentCount = posts.length
-    if (currentCount > prevCount && isNearBottom()) scrollToBottom()
-    else if (currentCount > prevCount) setShowScrollBtn(true)
-    else if (currentCount < prevCount) setShowScrollBtn(false)
+    if (currentCount > prevCount) {
+      if (isNearBottom()) scrollToBottom()
+      else setShowScrollBtn(true)
+    } else if (currentCount < prevCount) {
+      setShowScrollBtn(false)
+    }
     lastPostCount.current = currentCount
   }, [posts, postsLoading, snapToBottom, scrollToBottom, isNearBottom])
 
-  // FALLBACK: fires after paint — catches cases where lazy images / web fonts
-  // inflate the feed height after useLayoutEffect already ran.
+  // ─── Auto-scroll: layer 2 (useEffect + setTimeout, after paint) ──────────
+  // Safety net: lazy images / web fonts can reflow the feed AFTER layer 1
+  // already ran, making scrollHeight larger. We retry once after the browser
+  // commits the next paint.
   useEffect(() => {
-    if (postsLoading || !shouldSnapRef.current) return
-    shouldSnapRef.current = false
+    if (postsLoading || posts.length === 0 || hasSnappedRef.current) return
+    // hasSnappedRef is still false — layer 1 hadn't fired yet (e.g. images
+    // inflated layout between the two layers). Snap now.
+    hasSnappedRef.current = true
     lastPostCount.current = posts.length
-    // Run outside this microtask so the browser has committed the paint.
     const id = setTimeout(() => snapToBottom(), 0)
     return () => clearTimeout(id)
   }, [posts, postsLoading, snapToBottom])
