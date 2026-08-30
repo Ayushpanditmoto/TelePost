@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import styled from 'styled-components'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useMe, useLogout } from '@/hooks/useAuth'
 import { useChannels, useRemoveChannel, useVerifyChannel } from '@/hooks/useChannels'
 import {
@@ -241,7 +241,11 @@ function PlanAndBilling() {
   const requestPayment = useRequestPayment()
   const cancelPayment = useCancelPayment()
 
-  const [openSlug, setOpenSlug] = useState<string | null>(null)
+  // Read ?upgrade= plan slug from the URL (e.g. after login redirect)
+  const urlParams = useSearchParams()
+  const upgradeParam = urlParams?.get('upgrade') ?? null
+
+  const [openSlug, setOpenSlug] = useState<string | null>(upgradeParam || null)
 
   const currentSlug = me?.plan?.slug ?? 'free'
   const paidPlans = plans
@@ -344,7 +348,17 @@ function PlanAndBilling() {
             await requestPayment.mutateAsync({ planSlug: openPlan.slug, file, note })
             setOpenSlug(null)
           }}
-          onClose={() => setOpenSlug(null)}
+          onClose={() => {
+            setOpenSlug(null)
+            // Clean the URL so back-button / refresh doesn't reopen the modal
+            const params = new URLSearchParams(window.location.search)
+            params.delete('upgrade')
+            const qs = params.toString()
+            const url = qs
+              ? `${window.location.pathname}?${qs}`
+              : window.location.pathname
+            window.history.replaceState({}, '', url)
+          }}
         />
       )}
     </Card>

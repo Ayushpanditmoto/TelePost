@@ -2,6 +2,7 @@
 
 import React from "react";
 import styled from "styled-components";
+import { useRouter } from "next/navigation";
 import { PLANS } from "@/lib/plans";
 
 // ----- Section Styles (enhanced) -----
@@ -279,6 +280,7 @@ const PlanBtn = styled.button<{ $highlighted?: boolean }>`
 // Main Component
 // ============================================
 export default function Pricing() {
+  const router = useRouter();
   return (
     <Section id="pricing">
       <Inner>
@@ -317,6 +319,10 @@ export default function Pricing() {
               <PlanBtn
                 $highlighted={plan.highlighted}
                 id={`pricing-${plan.slug}-btn`}
+                onClick={() => {
+                  if (plan.slug === "free") router.push("/login");
+                  else router.push("/login?upgrade=" + plan.slug);
+                }}
               >
                 {plan.price === 0 ? "Start Free" : `Get ${plan.name}`}
               </PlanBtn>
