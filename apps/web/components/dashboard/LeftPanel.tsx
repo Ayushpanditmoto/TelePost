@@ -9,6 +9,7 @@ import { useDashboardStore } from '@/store/dashboardStore'
 import { useMe, useLogout } from '@/hooks/useAuth'
 import { useChannels } from '@/hooks/useChannels'
 import { API_URL } from '@/lib/api'
+import { formatMemberCount } from '@/lib/mockData'
 import AddChannelDialog from './AddChannelDialog'
 
 const slideDown = keyframes`
@@ -523,7 +524,11 @@ export default function LeftPanel() {
                 <ChannelName>
                   {channel.username ? `@${channel.username}` : channel.title}
                 </ChannelName>
-                <ChannelMeta>{channel.title}</ChannelMeta>
+                <ChannelMeta>
+                  {formatMemberCount(channel.memberCount)
+                    ? `${formatMemberCount(channel.memberCount)} members`
+                    : channel.title}
+                </ChannelMeta>
               </ChannelInfo>
             </ChannelItem>
           ))

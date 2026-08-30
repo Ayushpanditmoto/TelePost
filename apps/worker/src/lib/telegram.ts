@@ -153,6 +153,15 @@ export function deleteMessage(
   })
 }
 
+// Bot API getChatMemberCount: current subscriber/member count for a channel
+// or supergroup (the bot must be an admin there — it always is, by design).
+export function getChatMemberCount(
+  token: string,
+  chatId: string
+): Promise<TelegramResponse<number>> {
+  return callTelegram<number>(token, 'getChatMemberCount', { chat_id: chatId })
+}
+
 // Bot API getFile: resolves a file_id to a relative path downloadable from
 // https://api.telegram.org/file/bot<token>/<path> (valid for ~1 hour).
 export function getFile(

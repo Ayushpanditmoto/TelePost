@@ -4,7 +4,12 @@ import { createDb } from '../db'
 import { authNonces, sessions, telegramChannels, users } from '@telepost/db'
 import type { HonoEnv } from '../types'
 import { findOrCreateUser, consumeNonce } from '../lib/auth'
-import { callTelegram, getChat, getChatMember } from '../lib/telegram'
+import {
+  callTelegram,
+  getChat,
+  getChatMember,
+  getChatMemberCount,
+} from '../lib/telegram'
 import { countUserChannels, getUserPlan } from '../lib/planLimits'
 import { storeChannelPhoto } from '../lib/media'
 
@@ -222,6 +227,11 @@ async function handleForwardedChannel(
   const chatRes = await getChat(token, telegramChatId)
   const chat = chatRes.ok ? chatRes.result : null
 
+  // Current member count (best-effort — fails softly on private chats).
+  const memberRes = await getChatMemberCount(token, telegramChatId)
+  const memberCount =
+    memberRes.ok && typeof memberRes.result === 'number' ? memberRes.result : null
+
   const [inserted] = await db
     .insert(telegramChannels)
     .values({
@@ -231,6 +241,9 @@ async function handleForwardedChannel(
       username: chat?.username ?? src.username ?? null,
       title: chat?.title ?? src.title ?? telegramChatId,
       verified: false,
+      memberCount,
+      memberCountUpdatedAt:
+        memberCount != null ? new Date().toISOString() : null,
     })
     .returning()
 

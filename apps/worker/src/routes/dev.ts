@@ -21,9 +21,24 @@ devRoutes.use('*', async (c, next) => {
 // Stable fake chat ids — re-seeding never duplicates these channels and
 // DELETE /api/dev/seed can find exactly what was seeded.
 const DEMO_CHANNELS = [
-  { telegramChatId: '-100900000001', username: 'CryptoTrading', title: 'Crypto Trading' },
-  { telegramChatId: '-100900000002', username: 'DailyNews', title: 'Daily News' },
-  { telegramChatId: '-100900000003', username: 'MarketSignals', title: 'Market Signals' },
+  {
+    telegramChatId: '-100900000001',
+    username: 'CryptoTrading',
+    title: 'Crypto Trading',
+    memberCount: 12400,
+  },
+  {
+    telegramChatId: '-100900000002',
+    username: 'DailyNews',
+    title: 'Daily News',
+    memberCount: 31200,
+  },
+  {
+    telegramChatId: '-100900000003',
+    username: 'MarketSignals',
+    title: 'Market Signals',
+    memberCount: 8900,
+  },
 ]
 
 // Platform bot id (mirrors channels.ts / bot.ts).
@@ -94,6 +109,8 @@ devRoutes.post('/seed', async (c) => {
         username: ch.username,
         title: ch.title,
         verified: true,
+        memberCount: ch.memberCount,
+        memberCountUpdatedAt: new Date().toISOString(),
       }))
     )
   }

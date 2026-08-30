@@ -11,6 +11,7 @@ export interface Channel {
   title: string
   verified: boolean
   hasPhoto: boolean
+  memberCount: number | null
   createdAt: string
   updatedAt: string
 }

@@ -6,7 +6,7 @@ import { useDashboardStore } from '@/store/dashboardStore'
 import { useChannels } from '@/hooks/useChannels'
 import { usePosts, type Post } from '@/hooks/usePosts'
 import { useSeedDemoData } from '@/hooks/useDev'
-import { dbDate } from '@/lib/mockData'
+import { dbDate, formatMemberCount } from '@/lib/mockData'
 import { API_URL } from '@/lib/api'
 import MessageCard from './MessageCard'
 import MessageComposer from './MessageComposer'
@@ -716,7 +716,11 @@ export default function CenterPanel() {
                   <ChannelName>
                     {channel.username ? `@${channel.username}` : channel.title}
                   </ChannelName>
-                  <ChannelSub>{channel.title}</ChannelSub>
+                  <ChannelSub>
+                    {formatMemberCount(channel.memberCount)
+                      ? `${formatMemberCount(channel.memberCount)} members · ${channel.title}`
+                      : channel.title}
+                  </ChannelSub>
                 </ChannelDetails>
               </>
             )

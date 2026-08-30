@@ -132,6 +132,10 @@ export const telegramChannels = sqliteTable(
     // R2 key of the chat's profile photo (Bot API getChat → photo), cached at
     // connect time or lazily by GET /api/channels/:id/photo.
     photoKey: text('photo_key'),
+    // Cached Telegram member count, refreshed at most hourly by the channels
+    // list endpoint (getChatMemberCount; bot must be admin — it always is).
+    memberCount: integer('member_count'),
+    memberCountUpdatedAt: text('member_count_updated_at'),
     ...timestamps,
   },
   (t) => ({

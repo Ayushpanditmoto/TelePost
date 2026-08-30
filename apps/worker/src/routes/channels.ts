@@ -1,15 +1,24 @@
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 import { and, eq } from 'drizzle-orm'
-import { createDb } from '../db'
+import { createDb, type Db } from '../db'
 import { telegramChannels } from '@telepost/db'
 import type { HonoEnv } from '../types'
 import { requireAuth } from '../lib/auth'
-import { getChat, getChatMember, sendMessage } from '../lib/telegram'
+import {
+  getChat,
+  getChatMember,
+  getChatMemberCount,
+  sendMessage,
+} from '../lib/telegram'
 import { countUserChannels, getUserPlan } from '../lib/planLimits'
 import { storeChannelPhoto } from '../lib/media'
 
 // Platform bot that publishes for all users (from TELEGRAM_BOT_TOKEN env).
 const PLATFORM_BOT_ID = 8985221169
+
+// Member counts are refreshed from the Bot API at most this often.
+const MEMBER_COUNT_TTL_MS = 60 * 60 * 1000
 
 export const channelRoutes = new Hono<HonoEnv>()
 
@@ -25,12 +34,36 @@ function toPublicChannel(row: typeof telegramChannels.$inferSelect) {
     title: row.title,
     verified: row.verified,
     hasPhoto: Boolean(row.photoKey),
+    memberCount: row.memberCount,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
 }
 
-// GET /api/channels — list the authenticated user's channels.
+// Refresh one channel's cached member count when older than the TTL. Marks
+// the attempt time even on failure so a broken chat is retried hourly, not
+// on every request. Returns the fresh count, or the previous one.
+async function refreshMemberCount(
+  c: Context<HonoEnv>,
+  db: Db,
+  channel: typeof telegramChannels.$inferSelect
+): Promise<number | null> {
+  const updatedAt = new Date().toISOString()
+  const res = await getChatMemberCount(c.env.TELEGRAM_BOT_TOKEN, channel.telegramChatId)
+  const memberCount =
+    res.ok && typeof res.result === 'number' ? res.result : channel.memberCount
+
+  await db
+    .update(telegramChannels)
+    .set({ memberCount, memberCountUpdatedAt: updatedAt })
+    .where(eq(telegramChannels.id, channel.id))
+  channel.memberCount = memberCount
+  channel.memberCountUpdatedAt = updatedAt
+  return memberCount
+}
+
+// GET /api/channels — list the authenticated user's channels. Member counts
+// are refreshed from Telegram when their cache is older than an hour.
 channelRoutes.get('/', async (c) => {
   const user = await requireAuth(c)
   const db = createDb(c.env.DB)
@@ -40,6 +73,15 @@ channelRoutes.get('/', async (c) => {
     .from(telegramChannels)
     .where(eq(telegramChannels.userId, user.id))
     .orderBy(telegramChannels.createdAt)
+
+  const now = Date.now()
+  for (const channel of channels) {
+    const age = channel.memberCountUpdatedAt
+      ? now - new Date(channel.memberCountUpdatedAt).getTime()
+      : Number.POSITIVE_INFINITY
+    if (age < MEMBER_COUNT_TTL_MS) continue
+    await refreshMemberCount(c, db, channel)
+  }
 
   return c.json({ channels: channels.map(toPublicChannel) })
 })
@@ -120,6 +162,13 @@ channelRoutes.post('/', async (c) => {
     }
   }
 
+  // Current member count (bot is admin, so getChatMemberCount is allowed).
+  const memberCountRes = await getChatMemberCount(c.env.TELEGRAM_BOT_TOKEN, telegramChatId)
+  const memberCount =
+    memberCountRes.ok && typeof memberCountRes.result === 'number'
+      ? memberCountRes.result
+      : null
+
   const inserted = await db
     .insert(telegramChannels)
     .values({
@@ -129,6 +178,9 @@ channelRoutes.post('/', async (c) => {
       username: chat.username ?? null,
       title: chat.title ?? chatId,
       verified: false,
+      memberCount,
+      memberCountUpdatedAt:
+        memberCount != null ? new Date().toISOString() : null,
     })
     .returning()
 

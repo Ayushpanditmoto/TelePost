@@ -165,3 +165,15 @@ export function formatPostDate(post: PostTimestamps): string {
   if (isTomorrow) return `Tomorrow, ${date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
 }
+
+// 12400 → "12.4K", 1200000 → "1.2M" — Telegram-style member counts.
+export function formatMemberCount(count: number | null | undefined): string | null {
+  if (count == null || !Number.isFinite(count)) return null
+  if (count >= 1_000_000) {
+    return `${(count / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+  }
+  if (count >= 1_000) {
+    return `${(count / 1_000).toFixed(1).replace(/\.0$/, '')}K`
+  }
+  return String(count)
+}
