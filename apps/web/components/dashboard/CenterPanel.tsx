@@ -5,6 +5,7 @@ import styled, { keyframes } from 'styled-components'
 import { useDashboardStore } from '@/store/dashboardStore'
 import { useChannels } from '@/hooks/useChannels'
 import { usePosts, type Post } from '@/hooks/usePosts'
+import { useSeedDemoData } from '@/hooks/useDev'
 import { dbDate } from '@/lib/mockData'
 import MessageCard from './MessageCard'
 import MessageComposer from './MessageComposer'
@@ -139,38 +140,54 @@ const Feed = styled.div`
   /* min-height: 0 lets the Feed shrink below its content inside the 100vh
      flex column — without it overflow-y never engages and it clips instead. */
   min-height: 0;
+  /* A plain block scroller — bottom-anchoring must NOT live here. Flex
+     alignment (flex-end) on a scroll container pushes overflow past the START
+     edge where scrollTop gets clamped: the chat sticks to the bottom, fights
+     manual scrolling, and the oldest bubble is unreachable/clipped. Anchoring
+     happens inside FeedInner (CSS, short chats) and via the JS snap (long
+     chats) — how Telegram's web app does it. */
   overflow-y: auto;
   /* Keeps wheel/touch momentum from chaining out of the feed once it ends. */
   overscroll-behavior: contain;
   overflow-x: hidden;
-  padding: 0 ${({ theme }) => theme.spacing.lg} ${({ theme }) => theme.spacing.xl};
-  display: flex;
-  flex-direction: column;
-  /* justify-content: flex-end anchors messages to the bottom of the feed
-     (like Telegram) so short lists don't float at the top. Once the content
-     overflows the flex container, justify-content has no effect and the user
-     can scroll up freely. */
-  justify-content: flex-end;
-  align-items: flex-start;
-  gap: ${({ theme }) => theme.spacing.sm};
+  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.lg}
+    ${({ theme }) => theme.spacing.xl};
   background-color: #101b28;
   background-image: url('/telegram-pattern.svg');
 `
 
-const DateSeparator = styled.div`
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing.md};
-  padding: ${({ theme }) => theme.spacing.sm} ${({ theme }) => theme.spacing.xl};
-  margin: ${({ theme }) => theme.spacing.sm} 0 ${({ theme }) => theme.spacing.sm};
+// Centered conversation band: Telegram keeps bubbles in a readable column
+// instead of stretching them across ultra-wide panels. It is a flex column
+// with auto height so bubbles can NEVER be squished by the scroll container
+// (direct children of a fixed-height flex feed get compressed and their
+// overflow:hidden clips text mid-line). `margin-top: auto` preserves the
+// bottom-anchoring above for short chats.
+const FeedInner = styled.div`
   width: 100%;
-  box-sizing: border-box;
+  max-width: ${({ theme }) => theme.layout.chatMaxWidth};
+  margin: 0 auto;
+  /* Fill short viewports so bubbles bottom-anchor via justify-content below —
+     with no overflow there is nothing to scroll and no flex-overflow bug.
+     Once messages exceed the viewport, min-height stops mattering and the
+     feed scrolls as a normal block with the oldest message fully reachable. */
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: ${({ theme }) => theme.spacing.sm};
 `
 
-const DateLine = styled.div`
-  flex: 1;
-  height: 1px;
-  background: ${({ theme }) => theme.colors.border.subtle};
+// Telegram-style floating date pill, centered above the day's first message —
+// reads as a clear group boundary instead of a full-width line of text.
+const DateSeparator = styled.div`
+  align-self: center;
+  flex-shrink: 0;
+  background: ${({ theme }) => theme.colors.bg.input};
+  border-radius: ${({ theme }) => theme.radius.full};
+  padding: 4px 14px;
+  margin: ${({ theme }) => theme.spacing.md} 0 ${({ theme }) => theme.spacing.xs};
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
 `
 
 const DateLabel = styled.span`
@@ -181,8 +198,9 @@ const DateLabel = styled.span`
 `
 
 const EmptyState = styled.div`
-  flex: 1;
+  min-height: 100%;
   width: 100%;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -205,6 +223,33 @@ const EmptyTitle = styled.p`
 const EmptyDesc = styled.p`
   font-size: ${({ theme }) => theme.font.size.sm};
   color: ${({ theme }) => theme.colors.text.muted};
+`
+
+const SeedBtn = styled.button`
+  margin-top: ${({ theme }) => theme.spacing.sm};
+  padding: 8px 18px;
+  border-radius: ${({ theme }) => theme.radius.full};
+  border: 1px dashed ${({ theme }) => theme.colors.border.accent};
+  background: transparent;
+  color: ${({ theme }) => theme.colors.text.accent};
+  font-size: ${({ theme }) => theme.font.size.sm};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transition.fast};
+
+  &:hover:not(:disabled) {
+    background: ${({ theme }) => theme.colors.accentMuted};
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`
+
+const SeedError = styled.p`
+  font-size: ${({ theme }) => theme.font.size.xs};
+  color: ${({ theme }) => theme.colors.status.failed};
 `
 
 const ScrollToBottomBtn = styled.button<{ $visible?: boolean }>`
@@ -252,6 +297,10 @@ const ScrollToBottomBtn = styled.button<{ $visible?: boolean }>`
 `
 
 const AVATAR_COLORS = ['#2196f3', '#9c27b0', '#f44336', '#4caf50', '#ff9800']
+
+// Dev tooling renders only when the app is built with NEXT_PUBLIC_DEV_LOGIN=true
+// (see .env.example) — the worker refuses /api/dev routes in production anyway.
+const DEV_TOOLS_ENABLED = process.env.NEXT_PUBLIC_DEV_LOGIN === 'true'
 
 // ─── Shimmer skeletons (React Query initial loads) ───────────────────────────
 const fadeIn = keyframes`
@@ -325,10 +374,18 @@ const CardSkeletonMeta = styled.div`
   margin-top: 10px;
 `
 
+// Pin the loading bones to the bottom of the viewport like real messages do.
+const FeedSkeletonWrap = styled.div`
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+`
+
 function FeedSkeleton() {
   // Staggered delays make the bones settle in instead of blinking on.
   return (
-    <div id="feed-skeleton">
+    <FeedSkeletonWrap id="feed-skeleton">
       {[0, 1, 2, 3, 4].map((i) => (
         <CardSkeleton
           key={i}
@@ -345,7 +402,7 @@ function FeedSkeleton() {
           </CardSkeletonMeta>
         </CardSkeleton>
       ))}
-    </div>
+    </FeedSkeletonWrap>
   )
 }
 
@@ -443,6 +500,43 @@ function buildFeedItems(posts: Post[]): FeedItem[] {
   return items
 }
 
+// ─── Chat chronology helpers ─────────────────────────────────────────────────
+// A bubble's position in the chat is its *logical* message time — when it was
+// (or will be) delivered to Telegram — not when the row was created in
+// TelePost's DB. Falling back published → scheduled → created keeps drafts
+// anchored near when they were written.
+function messageTimeMs(post: Post): number {
+  return (
+    dbDate(post.publishedAt)?.getTime() ??
+    dbDate(post.scheduledAt)?.getTime() ??
+    dbDate(post.createdAt)?.getTime() ??
+    0
+  )
+}
+
+// Telegram-style separator labels relative to now.
+function dayLabel(timeMs: number): string {
+  const date = new Date(timeMs)
+  const startOfDay = (d: Date) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const dayDiff = Math.round(
+    (startOfDay(date) - startOfDay(new Date())) / MS_PER_DAY
+  )
+  if (dayDiff === 0) return 'Today'
+  if (dayDiff === -1) return 'Yesterday'
+  if (dayDiff === 1) return 'Tomorrow'
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+// Feed rows interleave per-day date separators with message bubbles.
+type FeedRow =
+  | { kind: 'separator'; key: string; label: string }
+  | { kind: 'message'; key: string; item: FeedItem }
+
 export default function CenterPanel() {
   const { selectedChannelId } = useDashboardStore()
   const { data: channels = [], isLoading: channelsLoading } = useChannels()
@@ -464,8 +558,40 @@ export default function CenterPanel() {
     (p) => activeFilter === 'all' || p.status === activeFilter
   )
 
+  // Chat chronology: a Telegram-style feed reads oldest → newest with the
+  // newest bubble pinned at the bottom. The API returns rows newest-first by
+  // DB row-creation time, which made the chat read backwards and let the
+  // snap-to-bottom land on the *oldest* message — re-sort ascending by each
+  // message's logical time before anything else.
+  const chronologicalPosts = useMemo(
+    () => [...posts].sort((a, b) => messageTimeMs(a) - messageTimeMs(b)),
+    [posts]
+  )
+
   // Collapse recurring series into single bubbles before rendering.
-  const feedItems = useMemo(() => buildFeedItems(posts), [posts])
+  const feedItems = useMemo(
+    () => buildFeedItems(chronologicalPosts),
+    [chronologicalPosts]
+  )
+
+  // Interleave "Today / Yesterday / <date>" separators between the bubbles.
+  const feedRows = useMemo<FeedRow[]>(() => {
+    const rows: FeedRow[] = []
+    let lastDayKey = ''
+    for (const item of feedItems) {
+      const timeMs = messageTimeMs(item.post)
+      const dayKey = new Date(timeMs).toDateString()
+      if (dayKey !== lastDayKey) {
+        lastDayKey = dayKey
+        rows.push({ kind: 'separator', key: `sep-${dayKey}`, label: dayLabel(timeMs) })
+      }
+      rows.push({ kind: 'message', key: item.post.id, item })
+    }
+    return rows
+  }, [feedItems])
+
+  // Dev builds only: one-click random demo data for an empty chat.
+  const seedDemo = useSeedDemoData()
 
   const SCROLL_THRESHOLD = 80
 
@@ -524,7 +650,8 @@ export default function CenterPanel() {
 
     // Watch for message cards being added (covers async fetch path).
     const mo = new MutationObserver(trySnap)
-    mo.observe(feed, { childList: true })
+    // subtree: bubbles render inside FeedInner, one level below the feed.
+    mo.observe(feed, { childList: true, subtree: true })
 
     return () => mo.disconnect()
   // Re-run when the user switches channel or filter.
@@ -532,14 +659,16 @@ export default function CenterPanel() {
   }, [selectedChannelId, activeFilter])
 
   // ─── Live-update follow ───────────────────────────────────────────────────
-  // After the initial snap, when new posts arrive, follow to the bottom only
-  // if the user is already near the bottom (never yank them away from history).
+  // When new posts arrive, follow to the bottom only if the user is already
+  // near the bottom (never yank them away from history). Chats that never
+  // overflowed have no snap yet — follow those too, or a first message that
+  // pushes the feed past the viewport would land below the fold.
   useEffect(() => {
-    if (postsLoading || !hasSnappedRef.current) return
+    if (postsLoading) return
     const prevCount = lastPostCount.current
     const currentCount = posts.length
     if (currentCount > prevCount) {
-      if (isNearBottom()) scrollToBottom()
+      if (isNearBottom() || !hasSnappedRef.current) scrollToBottom()
       else setShowScrollBtn(true)
     } else if (currentCount < prevCount) {
       setShowScrollBtn(false)
@@ -599,25 +728,44 @@ export default function CenterPanel() {
         {postsLoading ? (
           <FeedSkeleton />
         ) : posts.length > 0 ? (
-          <>
-            <DateSeparator>
-              <DateLine />
-              <DateLabel>Today</DateLabel>
-              <DateLine />
-            </DateSeparator>
-            {feedItems.map((item) => (
-              <MessageCard
-                key={item.post.id}
-                post={item.post}
-                series={item.series}
-              />
-            ))}
-          </>
+          <FeedInner>
+            {feedRows.map((row) =>
+              row.kind === 'separator' ? (
+                <DateSeparator key={row.key}>
+                  <DateLabel>{row.label}</DateLabel>
+                </DateSeparator>
+              ) : (
+                <MessageCard
+                  key={row.key}
+                  post={row.item.post}
+                  series={row.item.series}
+                />
+              )
+            )}
+          </FeedInner>
         ) : (
           <EmptyState>
             <EmptyIcon>📭</EmptyIcon>
             <EmptyTitle>No posts yet</EmptyTitle>
             <EmptyDesc>Write your first message below</EmptyDesc>
+            {DEV_TOOLS_ENABLED && (
+              <>
+                <SeedBtn
+                  onClick={() => seedDemo.mutate()}
+                  disabled={seedDemo.isPending}
+                  id="seed-demo-btn"
+                >
+                  {seedDemo.isPending ? 'Seeding…' : '✨ Seed demo messages'}
+                </SeedBtn>
+                {seedDemo.isError && (
+                  <SeedError>
+                    {seedDemo.error instanceof Error
+                      ? seedDemo.error.message
+                      : 'Seeding failed'}
+                  </SeedError>
+                )}
+              </>
+            )}
           </EmptyState>
         )}
         {/* Invisible scroll anchor removed — we use direct scrollTop now */}

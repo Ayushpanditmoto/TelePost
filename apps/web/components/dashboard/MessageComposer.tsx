@@ -23,6 +23,15 @@ const ComposerWrapper = styled.div`
      shrink the expanded schedule picker squeezed the feed to an unscrollable
      sliver on short viewports. */
   flex-shrink: 0;
+
+  /* Keep the composer aligned with the centered chat column (theme
+     layout.chatMaxWidth) instead of stretching across ultra-wide panels. */
+  & > * {
+    width: 100%;
+    max-width: ${({ theme }) => theme.layout.chatMaxWidth};
+    margin-left: auto;
+    margin-right: auto;
+  }
 `
 
 const ComposerBar = styled.div`

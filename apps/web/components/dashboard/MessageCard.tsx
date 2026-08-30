@@ -19,8 +19,11 @@ const spin = keyframes`
 const Card = styled.article<{ $selected: boolean; $hasMedia: boolean }>`
   align-self: flex-start;
   width: fit-content;
-  max-width: min(76%, 480px);
+  max-width: min(76%, 560px);
   margin: 2px 14px;
+  /* Never let a flex layout squish a bubble below its content height — with
+     overflow:hidden the squish clips text mid-line instead of scrolling. */
+  flex-shrink: 0;
   background: ${({ $selected, theme }) =>
     $selected ? theme.colors.bg.messageSelected : theme.colors.bg.message};
   /* One tight corner mimics the Telegram message tail. */
@@ -93,60 +96,44 @@ const Content = styled.p`
   line-height: ${({ theme }) => theme.font.lineHeight.normal};
   white-space: pre-wrap;
   word-break: break-word;
-  display: -webkit-box;
-  -webkit-line-clamp: 5;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  /* No line-clamp: a bubble's height must always fit its full content, like
+     Telegram. The full text is never truncated in the feed. */
 `;
 
 const Meta = styled.div`
+  /* Telegram-style: one compact, right-aligned line — a status glyph (plus a
+     short label only for non-published states) next to the timestamp, instead
+     of a full-width pill row eating bubble space. */
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
+  gap: 6px;
   margin-top: 3px;
 `;
 
 const StatusBadge = styled.span<{ $status: string }>`
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: ${({ theme }) => theme.font.size.xs};
+  gap: 3px;
+  flex-shrink: 0;
+  font-size: 10px;
   font-weight: ${({ theme }) => theme.font.weight.medium};
-  padding: 2px 8px;
-  border-radius: ${({ theme }) => theme.radius.full};
+  cursor: default;
 
   ${({ $status, theme }) => {
     switch ($status) {
       case "scheduled":
-        return `
-          color: ${theme.colors.status.scheduled};
-          background: ${theme.colors.status.scheduledBg};
-        `;
+        return `color: ${theme.colors.status.scheduled};`;
       case "published":
-        return `
-          color: ${theme.colors.status.published};
-          background: ${theme.colors.status.publishedBg};
-        `;
+        return `color: ${theme.colors.status.published};`;
       case "failed":
-        return `
-          color: ${theme.colors.status.failed};
-          background: ${theme.colors.status.failedBg};
-        `;
+        return `color: ${theme.colors.status.failed};`;
       case "draft":
-        return `
-          color: ${theme.colors.status.draft};
-          background: ${theme.colors.status.draftBg};
-        `;
+        return `color: ${theme.colors.status.draft};`;
       case "publishing":
-        return `
-          color: ${theme.colors.status.scheduled};
-          background: ${theme.colors.status.scheduledBg};
-        `;
+        return `color: ${theme.colors.status.publishing};`;
       default:
-        return `
-          color: ${theme.colors.text.muted};
-          background: transparent;
-        `;
+        return `color: ${theme.colors.text.muted};`;
     }
   }}
 `;
@@ -191,6 +178,25 @@ const STATUS_LABELS: Record<string, string> = {
   draft: "○ Draft",
   publishing: "⟳ Publishing",
   cancelled: "— Cancelled",
+};
+
+// Compact feed rendering: glyph always, short text label only for states that
+// need explaining (published — the common case — stays glyph + time).
+const STATUS_GLYPHS: Record<string, string> = {
+  scheduled: "🕐",
+  published: "✓",
+  failed: "✕",
+  draft: "○",
+  publishing: "⟳",
+  cancelled: "—",
+};
+
+const STATUS_SHORT: Record<string, string> = {
+  scheduled: "Scheduled",
+  failed: "Failed",
+  draft: "Draft",
+  publishing: "Publishing",
+  cancelled: "Cancelled",
 };
 
 interface MessageCardProps {
@@ -267,13 +273,24 @@ export default function MessageCard({ post, series }: MessageCardProps) {
         {hasText && <Content>{post.content}</Content>}
 
         <Meta>
-          <StatusBadge $status={post.status}>
+          <StatusBadge
+            $status={post.status}
+            title={STATUS_LABELS[post.status] ?? post.status}
+          >
             {post.status === "publishing" ? (
               <>
-                <PublishingGlyph>⟳</PublishingGlyph> Publishing
+                <PublishingGlyph>⟳</PublishingGlyph>
+                <span>Publishing</span>
               </>
             ) : (
-              (STATUS_LABELS[post.status] ?? post.status)
+              <>
+                <span aria-hidden="true">
+                  {STATUS_GLYPHS[post.status] ?? "•"}
+                </span>
+                {post.status !== "published" && (
+                  <span>{STATUS_SHORT[post.status]}</span>
+                )}
+              </>
             )}
           </StatusBadge>
           <Timestamp

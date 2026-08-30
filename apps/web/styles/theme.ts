@@ -109,6 +109,9 @@ export const theme = {
     leftPanelWidth: '260px',
     rightPanelWidth: '320px',
     navbarHeight: '64px',
+    // Centered conversation band shared by the chat feed and the composer so
+    // both stay aligned on ultra-wide screens instead of stretching full-bleed.
+    chatMaxWidth: '860px',
   },
 } as const
 
