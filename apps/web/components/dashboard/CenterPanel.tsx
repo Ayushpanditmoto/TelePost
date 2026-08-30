@@ -45,6 +45,7 @@ const ChannelInfo = styled.div`
 `
 
 const ChannelAvatar = styled.div<{ $color: string }>`
+  position: relative;
   width: 34px;
   height: 34px;
   border-radius: 50%;
@@ -59,6 +60,8 @@ const ChannelAvatar = styled.div<{ $color: string }>`
   overflow: hidden;
 
   img {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -701,16 +704,20 @@ export default function CenterPanel() {
             channel && (
               <>
                 <ChannelAvatar $color={AVATAR_COLORS[channelIndex % AVATAR_COLORS.length] ?? '#2196f3'}>
-                  {channel.hasPhoto ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={`${API_URL}/api/channels/${channel.id}/photo`}
-                      alt=""
-                      draggable={false}
-                    />
-                  ) : (
-                    channel.title.charAt(0)
-                  )}
+                  {channel.title.charAt(0)}
+                  {/* Always request the photo — groups connected before the
+                      photo feature lack photo_key, and this GET triggers the
+                      worker's one-time lazy cache. onError falls back to the
+                      letter tile underneath (404 = no photo available). */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`${API_URL}/api/channels/${channel.id}/photo`}
+                    alt=""
+                    draggable={false}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                    }}
+                  />
                 </ChannelAvatar>
                 <ChannelDetails>
                   <ChannelName>
