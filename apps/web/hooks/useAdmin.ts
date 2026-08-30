@@ -128,3 +128,69 @@ export function useRevokePlan() {
     onSuccess: () => invalidate(queryClient),
   })
 }
+
+// ─── Manual QR payment review ─────────────────────────────────────────────────
+
+export interface AdminPaymentRow {
+  id: string
+  userId: string
+  userDisplay: string
+  userTelegramId: number | null
+  planSlug: string
+  planName: string
+  amount: number
+  currency: string
+  status: 'pending' | 'confirmed' | 'failed' | 'expired'
+  note: string | null
+  rejectionReason: string | null
+  hasScreenshot: boolean
+  createdAt: string
+  confirmedAt: string | null
+  reviewedAt: string | null
+}
+
+// Every manual QR payment, optionally filtered by ?status=.
+export function useAdminPayments(enabled: boolean, status?: string) {
+  return useQuery<AdminPaymentRow[]>({
+    queryKey: ['admin-payments', status ?? 'all'],
+    queryFn: async () => {
+      const qs = status ? `?status=${encodeURIComponent(status)}` : ''
+      const data = await api<{ payments: AdminPaymentRow[] }>(`/api/admin/payments${qs}`)
+      return data.payments
+    },
+    enabled,
+    staleTime: 0,
+    retry: false,
+    refetchInterval: 1000 * 20, // keep the review queue fresh
+  })
+}
+
+export function useApprovePayment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, months }: { id: string; months: number }) =>
+      api<{ success: boolean; paidForMonths: number; expiresAt: string }>(
+        `/api/admin/payments/${id}/approve`,
+        { method: 'POST', body: JSON.stringify({ months }) }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-payments'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+    },
+  })
+}
+
+export function useRejectPayment() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+      api<{ success: boolean }>(`/api/admin/payments/${id}/reject`, {
+        method: 'POST',
+        body: JSON.stringify({ reason }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-payments'] })
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+    },
+  })
+}

@@ -9,6 +9,7 @@ import { postRoutes } from './routes/posts'
 import { mediaRoutes } from './routes/media'
 import { planRoutes } from './routes/plans'
 import { adminRoutes } from './routes/admin'
+import { paymentRoutes } from './routes/payments'
 import { devRoutes } from './routes/dev'
 import { sessionMiddleware } from './lib/auth'
 import { createDb } from './db'
@@ -69,6 +70,7 @@ app.route('/api/posts', postRoutes)
 app.route('/api/media', mediaRoutes)
 app.route('/api/plans', planRoutes)
 app.route('/api/admin', adminRoutes)
+app.route('/api/payments', paymentRoutes)
 app.route('/api/dev', devRoutes)
 
 // Scheduled cron handler: find due posts and deliver them directly.

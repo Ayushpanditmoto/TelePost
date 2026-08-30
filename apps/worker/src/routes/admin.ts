@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { and, desc, eq, gt, isNull, or, sql } from 'drizzle-orm'
 import { createDb, type Db } from '../db'
-import { plans, posts, subscriptions, telegramChannels, users } from '@telepost/db'
+import { payments, plans, posts, subscriptions, telegramChannels, users } from '@telepost/db'
 import type { HonoEnv } from '../types'
 import {
   clearAdminCookie,
@@ -220,4 +220,162 @@ adminRoutes.delete('/users/:id/subscription', async (c) => {
     .returning()
 
   return c.json({ success: true, revoked: revoked.length })
+})
+
+// ─── Manual QR payment review ─────────────────────────────────────────────────
+
+export interface AdminPaymentRow {
+  id: string
+  userId: string
+  userDisplay: string
+  userTelegramId: number | null
+  planSlug: string
+  planName: string
+  amount: number
+  currency: string
+  status: string
+  note: string | null
+  rejectionReason: string | null
+  hasScreenshot: boolean
+  createdAt: string
+  confirmedAt: string | null
+  reviewedAt: string | null
+}
+
+// GET /api/admin/payments — every QR payment (optionally filtered by status).
+adminRoutes.get('/payments', async (c) => {
+  await requireAdmin(c)
+  const db = createDb(c.env.DB)
+
+  const status = c.req.query('status')
+  const STATUSES = ['pending', 'confirmed', 'failed', 'expired'] as const
+  const where =
+    status && (STATUSES as readonly string[]).includes(status)
+      ? eq(payments.status, status as (typeof STATUSES)[number])
+      : undefined
+
+  const rows = await db
+    .select({ payment: payments, plan: plans, user: users })
+    .from(payments)
+    .innerJoin(plans, eq(plans.id, payments.planId))
+    .innerJoin(users, eq(users.id, payments.userId))
+    .where(where)
+    .orderBy(desc(payments.createdAt))
+    .limit(200)
+
+  return c.json({
+    payments: rows.map((r) => ({
+      id: r.payment.id,
+      userId: r.payment.userId,
+      userDisplay: r.user.displayName,
+      userTelegramId: r.user.telegramId,
+      planSlug: r.plan.slug,
+      planName: r.plan.name,
+      amount: r.payment.amount,
+      currency: r.payment.currency,
+      status: r.payment.status,
+      note: r.payment.note,
+      rejectionReason: r.payment.rejectionReason,
+      hasScreenshot: Boolean(r.payment.screenshotKey),
+      createdAt: r.payment.createdAt,
+      confirmedAt: r.payment.confirmedAt,
+      reviewedAt: r.payment.reviewedAt,
+    })) as AdminPaymentRow[],
+  })
+})
+
+// POST /api/admin/payments/:id/approve — confirms the payment and activates the
+// plan. Body: { months?: number } (default 1). Reuses the subscription swap so
+// the user ends up with exactly one active subscription.
+adminRoutes.post('/payments/:id/approve', async (c) => {
+  await requireAdmin(c)
+  const paymentId = c.req.param('id')
+  const db = createDb(c.env.DB)
+
+  const [payment] = await db
+    .select({ payment: payments, plan: plans })
+    .from(payments)
+    .innerJoin(plans, eq(plans.id, payments.planId))
+    .where(eq(payments.id, paymentId))
+    .limit(1)
+  if (!payment) return c.json({ error: 'Payment not found' }, 404)
+  if (payment.payment.status !== 'pending') {
+    return c.json({ error: 'Only pending payments can be approved' }, 400)
+  }
+
+  const body = (
+    await c.req.json<{ months?: unknown }>().catch(() => null)
+  ) ?? {}
+  let months = 1
+  if (body.months !== undefined && body.months !== null) {
+    if (typeof body.months !== 'number' || !Number.isInteger(body.months)) {
+      return c.json({ error: 'months must be an integer' }, 400)
+    }
+    months = Math.min(Math.max(body.months, 1), 36)
+  }
+
+  const now = new Date()
+  const expires = new Date(now)
+  expires.setMonth(expires.getMonth() + months)
+
+  await db.batch([
+    db
+      .update(payments)
+      .set({
+        status: 'confirmed',
+        confirmedAt: now.toISOString(),
+        reviewedAt: now.toISOString(),
+        reviewedBy: c.env.ADMIN_EMAIL ?? 'admin',
+      })
+      .where(eq(payments.id, paymentId)),
+    // Retire any current active subscription, then start the new one.
+    db
+      .update(subscriptions)
+      .set({ status: 'expired' })
+      .where(
+        and(eq(subscriptions.userId, payment.payment.userId), eq(subscriptions.status, 'active'))
+      ),
+    db.insert(subscriptions).values({
+      userId: payment.payment.userId,
+      planId: payment.plan.id,
+      status: 'active',
+      startedAt: now.toISOString(),
+      expiresAt: expires.toISOString(),
+    }),
+  ])
+
+  return c.json({ success: true, paidForMonths: months, expiresAt: expires.toISOString() })
+})
+
+// POST /api/admin/payments/:id/reject — marks the payment failed with a reason.
+adminRoutes.post('/payments/:id/reject', async (c) => {
+  await requireAdmin(c)
+  const paymentId = c.req.param('id')
+  const db = createDb(c.env.DB)
+
+  const [payment] = await db
+    .select()
+    .from(payments)
+    .where(eq(payments.id, paymentId))
+    .limit(1)
+  if (!payment) return c.json({ error: 'Payment not found' }, 404)
+  if (payment.status !== 'pending') {
+    return c.json({ error: 'Only pending payments can be rejected' }, 400)
+  }
+
+  const body = (await c.req.json<{ reason?: unknown }>().catch(() => null)) ?? {}
+  const reason =
+    typeof body.reason === 'string' ? body.reason.trim().slice(0, 500) : ''
+
+  await db
+    .update(payments)
+    .set({
+      status: 'failed',
+      rejectionReason: reason || 'Rejected by admin',
+      reviewedAt: new Date().toISOString(),
+      reviewedBy: c.env.ADMIN_EMAIL ?? 'admin',
+    })
+    .where(eq(payments.id, paymentId))
+
+  return c.json({ success: true })
 })

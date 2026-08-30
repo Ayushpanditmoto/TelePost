@@ -14,6 +14,14 @@ export interface Env {
   ADMIN_EMAIL?: string
   /** Shared secret required alongside ADMIN_EMAIL to unlock the admin panel. */
   ADMIN_KEY?: string
+  /** Manual payment via TrustWallet QR — wallet address (TRC20 etc.) shown to users. */
+  PAYMENT_ADDRESS?: string
+  /** Manual payment via TrustWallet QR — optional direct URL to the QR image. */
+  PAYMENT_QR_URL?: string
+  /** Optional network label, e.g. "TRON (TRC20) · USDT". */
+  PAYMENT_NETWORK?: string
+  /** Optional instruction note shown with the payment details. */
+  PAYMENT_NOTE?: string
 }
 
 export interface SessionUser {

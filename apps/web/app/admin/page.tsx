@@ -11,10 +11,15 @@ import {
   useAdminLogout,
   useAdminUsers,
   useAdminPlans,
+  useAdminPayments,
+  useApprovePayment,
+  useRejectPayment,
   useGrantPlan,
   useRevokePlan,
   type AdminUserRow,
+  type AdminPaymentRow,
 } from '@/hooks/useAdmin'
+import { paymentScreenshotUrl } from '@/hooks/usePayments'
 
 // ─── Page shell ──────────────────────────────────────────────────────────────
 
@@ -46,6 +51,7 @@ export default function AdminPage() {
             </LogoutBtn>
           </TopBar>
           <UserRoster />
+          <PaymentsReview />
         </>
       ) : (
         <LoginCard />
@@ -291,6 +297,133 @@ function UserRoster() {
             })}
           </List>
         </>
+      )}
+    </RosterWrap>
+  )
+}
+
+// ─── Manual QR payment review ────────────────────────────────────────────────
+
+function PaymentsReview() {
+  const [filter, setFilter] = useState<'pending' | 'all'>('pending')
+  const { data: payments = [], isLoading, error } = useAdminPayments(
+    true,
+    filter === 'pending' ? 'pending' : undefined
+  )
+  const approve = useApprovePayment()
+  const reject = useRejectPayment()
+  const [monthsDraft, setMonthsDraft] = useState<Record<string, number>>({})
+
+  const monthsFor = (id: string) => monthsDraft[id] ?? 1
+  const setMonths = (id: string, value: number) =>
+    setMonthsDraft((prev) => ({ ...prev, [id]: value }))
+
+  const handleApprove = async (p: AdminPaymentRow) => {
+    if (!window.confirm(`Approve ${p.planName} ($${p.amount} ${p.currency}) for ${p.userDisplay}?`)) return
+    try {
+      await approve.mutateAsync({ id: p.id, months: monthsFor(p.id) })
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Failed to approve')
+    }
+  }
+
+  const handleReject = async (p: AdminPaymentRow) => {
+    const reason = window.prompt('Reason for rejection (optional):', 'Payment not verified')
+    if (reason === null) return
+    try {
+      await reject.mutateAsync({ id: p.id, reason: reason || undefined })
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Failed to reject')
+    }
+  }
+
+  return (
+    <RosterWrap>
+      <RosterSummary>
+        Payments ·{' '}
+        <FilterLink $active={filter === 'pending'} onClick={() => setFilter('pending')}>
+          Pending queue
+        </FilterLink>{' '}
+        ·{' '}
+        <FilterLink $active={filter === 'all'} onClick={() => setFilter('all')}>
+          All
+        </FilterLink>
+      </RosterSummary>
+
+      {isLoading ? (
+        <RosterSummary>Loading payments…</RosterSummary>
+      ) : error ? (
+        <EmptyText>Couldn’t load payments — {error instanceof Error ? error.message : 'unknown error'}</EmptyText>
+      ) : payments.length === 0 ? (
+        <EmptyText>No {filter === 'pending' ? 'pending ' : ''}payments right now.</EmptyText>
+      ) : (
+        <List>
+          {payments.map((p) => {
+            const isPending = p.status === 'pending'
+            const approving = approve.isPending && approve.variables?.id === p.id
+            const rejecting = reject.isPending && reject.variables?.id === p.id
+            return (
+              <Row key={p.id} id={`admin-payment-${p.id}`}>
+                <Avatar>{(p.userDisplay || '?').charAt(0).toUpperCase()}</Avatar>
+
+                <UserIdentity>
+                  <UserName>{p.userDisplay}</UserName>
+                  <UserMeta>
+                    {p.planName} · ${p.amount} {p.currency} ·{' '}
+                    {dbDate(p.createdAt)?.toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                    }) ?? '—'}
+                    {p.note ? ` · note: ${p.note}` : ''}
+                  </UserMeta>
+                </UserIdentity>
+
+                {p.hasScreenshot && (
+                  <ScreenshotBtn
+                    onClick={() => window.open(paymentScreenshotUrl(p.id), '_blank')}
+                    title="Open payment screenshot"
+                  >
+                    View screenshot
+                  </ScreenshotBtn>
+                )}
+
+                <PaymentStatus $status={p.status}>
+                  {isPending
+                    ? 'Pending'
+                    : p.status === 'confirmed'
+                    ? 'Confirmed ✓'
+                    : p.status === 'failed'
+                    ? `Failed — ${p.rejectionReason ?? 'rejected'}`
+                    : 'Expired'}
+                </PaymentStatus>
+
+                {isPending && (
+                  <Controls>
+                    <MonthsInput
+                      type="number"
+                      min={1}
+                      max={12}
+                      value={monthsFor(p.id)}
+                      onChange={(e) =>
+                        setMonths(p.id, Math.min(Math.max(Math.floor(Number(e.target.value) || 1), 1), 12))
+                      }
+                      disabled={approving || rejecting}
+                      aria-label="Months to grant"
+                      id={`payment-months-${p.id}`}
+                    />
+                    <MoUnit>mo</MoUnit>
+                    <ActionBtn $approve onClick={() => handleApprove(p)} disabled={approving || rejecting} id={`approve-${p.id}`}>
+                      {approving ? '…' : 'Approve'}
+                    </ActionBtn>
+                    <ActionBtn $danger onClick={() => handleReject(p)} disabled={approving || rejecting} id={`reject-${p.id}`}>
+                      {rejecting ? '…' : 'Reject'}
+                    </ActionBtn>
+                  </Controls>
+                )}
+              </Row>
+            )
+          })}
+        </List>
       )}
     </RosterWrap>
   )
@@ -603,14 +736,22 @@ const MoUnit = styled.span`
   margin-left: -6px;
 `
 
-const ActionBtn = styled.button<{ $danger?: boolean }>`
+const ActionBtn = styled.button<{ $danger?: boolean; $approve?: boolean }>`
   padding: 7px 14px;
   border-radius: ${({ theme }) => theme.radius.full};
   border: 1px solid
-    ${({ $danger, theme }) =>
-      $danger ? 'rgba(244,67,54,0.4)' : theme.colors.border.accent};
-  color: ${({ $danger, theme }) =>
-    $danger ? theme.colors.status.failed : theme.colors.text.accent};
+    ${({ $approve, $danger, theme }) =>
+      $approve
+        ? theme.colors.status.published
+        : $danger
+        ? 'rgba(244,67,54,0.4)'
+        : theme.colors.border.accent};
+  color: ${({ $approve, $danger, theme }) =>
+    $approve
+      ? theme.colors.status.published
+      : $danger
+      ? theme.colors.status.failed
+      : theme.colors.text.accent};
   background: transparent;
   font-size: ${({ theme }) => theme.font.size.xs};
   font-weight: ${({ theme }) => theme.font.weight.medium};
@@ -619,12 +760,66 @@ const ActionBtn = styled.button<{ $danger?: boolean }>`
   white-space: nowrap;
 
   &:hover:not(:disabled) {
-    background: ${({ theme }) => theme.colors.accentMuted};
+    background: ${({ $approve, theme }) =>
+      $approve ? theme.colors.status.publishedBg : theme.colors.accentMuted};
   }
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
+`
+
+const FilterLink = styled.button<{ $active: boolean }>`
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: ${({ $active, theme }) =>
+    $active ? theme.colors.text.accent : theme.colors.text.muted};
+  text-decoration: ${({ $active }) => ($active ? 'underline' : 'none')};
+  cursor: pointer;
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.text.accent};
+  }
+`
+
+const ScreenshotBtn = styled.button`
+  padding: 7px 14px;
+  border-radius: ${({ theme }) => theme.radius.full};
+  border: 1px solid ${({ theme }) => theme.colors.border.accent};
+  color: ${({ theme }) => theme.colors.text.accent};
+  background: transparent;
+  font-size: ${({ theme }) => theme.font.size.xs};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transition.fast};
+  white-space: nowrap;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.accentMuted};
+  }
+`
+
+const PaymentStatus = styled.span<{ $status: string }>`
+  font-size: ${({ theme }) => theme.font.size.xs};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  padding: 3px 10px;
+  border-radius: ${({ theme }) => theme.radius.full};
+  white-space: nowrap;
+  color: ${({ $status, theme }) =>
+    $status === 'confirmed'
+      ? theme.colors.status.published
+      : $status === 'pending'
+      ? theme.colors.status.scheduled
+      : theme.colors.status.failed};
+  background: ${({ $status, theme }) =>
+    $status === 'confirmed'
+      ? theme.colors.status.publishedBg
+      : $status === 'pending'
+      ? theme.colors.status.scheduledBg
+      : theme.colors.status.failedBg};
 `
 
 const RosterSkeleton = styled.div`

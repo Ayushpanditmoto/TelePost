@@ -227,6 +227,14 @@ export const payments = sqliteTable(
       .notNull()
       .default(sql`(datetime('now'))`),
     confirmedAt: text('confirmed_at'),
+    // Manual QR approvals: R2 key of the user's payment screenshot.
+    screenshotKey: text('screenshot_key'),
+    // Optional user note submitted alongside the screenshot.
+    note: text('note'),
+    // Set by the admin when rejecting a pending payment.
+    rejectionReason: text('rejection_reason'),
+    reviewedAt: text('reviewed_at'),
+    reviewedBy: text('reviewed_by'),
   },
   (t) => ({
     userIdIdx: index('payments_user_id_idx').on(t.userId),
