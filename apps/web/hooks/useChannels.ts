@@ -10,6 +10,7 @@ export interface Channel {
   username: string | null
   title: string
   verified: boolean
+  hasPhoto: boolean
   createdAt: string
   updatedAt: string
 }

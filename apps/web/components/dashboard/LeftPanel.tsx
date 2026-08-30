@@ -8,6 +8,7 @@ import { Send } from 'lucide-react'
 import { useDashboardStore } from '@/store/dashboardStore'
 import { useMe, useLogout } from '@/hooks/useAuth'
 import { useChannels } from '@/hooks/useChannels'
+import { API_URL } from '@/lib/api'
 import AddChannelDialog from './AddChannelDialog'
 
 const slideDown = keyframes`
@@ -200,6 +201,14 @@ const ChannelAvatar = styled.div<{ $color: string }>`
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: #fff;
   flex-shrink: 0;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: inherit;
+  }
 `
 
 const ChannelInfo = styled.div`
@@ -421,7 +430,9 @@ export default function LeftPanel() {
   const router = useRouter()
   const { selectedChannelId, setSelectedChannelId, clearSelectedPost } =
     useDashboardStore()
-  const { data: user, isLoading: meLoading } = useMe()
+  const { data: me, isLoading: meLoading } = useMe()
+  const user = me?.user ?? null
+  const planLabel = me?.plan?.name ? `${me.plan.name} Plan` : 'Free Plan'
   const { data: channels = [], isLoading: channelsLoading } = useChannels()
   const logout = useLogout()
   const [loggingOut, setLoggingOut] = React.useState(false)
@@ -496,7 +507,17 @@ export default function LeftPanel() {
               <ChannelAvatar
                 $color={AVATAR_COLORS[i % AVATAR_COLORS.length] ?? '#2196f3'}
               >
-                {channel.title.charAt(0)}
+                {channel.hasPhoto ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={`${API_URL}/api/channels/${channel.id}/photo`}
+                    alt=""
+                    loading="lazy"
+                    draggable={false}
+                  />
+                ) : (
+                  channel.title.charAt(0)
+                )}
               </ChannelAvatar>
               <ChannelInfo>
                 <ChannelName>
@@ -544,7 +565,7 @@ export default function LeftPanel() {
             <UserAvatar>{(user?.displayName ?? 'A').charAt(0).toUpperCase()}</UserAvatar>
             <UserInfo>
               <UserName>@{user?.username ?? 'username'}</UserName>
-              <UserPlan>Free Plan</UserPlan>
+              <UserPlan>{planLabel}</UserPlan>
             </UserInfo>
             <LogoutBtn
               onClick={handleLogout}

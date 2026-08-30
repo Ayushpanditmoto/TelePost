@@ -7,6 +7,7 @@ import { useChannels } from '@/hooks/useChannels'
 import { usePosts, type Post } from '@/hooks/usePosts'
 import { useSeedDemoData } from '@/hooks/useDev'
 import { dbDate } from '@/lib/mockData'
+import { API_URL } from '@/lib/api'
 import MessageCard from './MessageCard'
 import MessageComposer from './MessageComposer'
 import { ChevronDown } from 'lucide-react'
@@ -55,6 +56,14 @@ const ChannelAvatar = styled.div<{ $color: string }>`
   font-weight: 600;
   color: #fff;
   flex-shrink: 0;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: inherit;
+  }
 `
 
 const ChannelDetails = styled.div``
@@ -692,7 +701,16 @@ export default function CenterPanel() {
             channel && (
               <>
                 <ChannelAvatar $color={AVATAR_COLORS[channelIndex % AVATAR_COLORS.length] ?? '#2196f3'}>
-                  {channel.title.charAt(0)}
+                  {channel.hasPhoto ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`${API_URL}/api/channels/${channel.id}/photo`}
+                      alt=""
+                      draggable={false}
+                    />
+                  ) : (
+                    channel.title.charAt(0)
+                  )}
                 </ChannelAvatar>
                 <ChannelDetails>
                   <ChannelName>

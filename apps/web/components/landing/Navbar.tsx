@@ -174,7 +174,8 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   // Session-aware CTA: logged-in visitors get a direct link to the dashboard
   // instead of the Telegram login screen (/login itself redirects them too).
-  const { data: user } = useMe();
+  const { data: me } = useMe();
+  const user = me?.user ?? null;
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 20);

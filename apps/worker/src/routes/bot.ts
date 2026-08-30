@@ -4,8 +4,9 @@ import { createDb } from '../db'
 import { authNonces, sessions, telegramChannels, users } from '@telepost/db'
 import type { HonoEnv } from '../types'
 import { findOrCreateUser, consumeNonce } from '../lib/auth'
-import { callTelegram, getChatMember } from '../lib/telegram'
+import { callTelegram, getChat, getChatMember } from '../lib/telegram'
 import { countUserChannels, getUserPlan } from '../lib/planLimits'
+import { storeChannelPhoto } from '../lib/media'
 
 // Platform bot that publishes for all users (matches channels.ts / schema).
 const PLATFORM_BOT_ID = 8985221169
@@ -217,14 +218,32 @@ async function handleForwardedChannel(
     }
   }
 
-  await db.insert(telegramChannels).values({
-    userId: user.id,
-    telegramBotId: PLATFORM_BOT_ID,
-    telegramChatId,
-    username: src.username ?? null,
-    title: src.title ?? telegramChatId,
-    verified: false,
-  })
+  // Resolve the chat for canonical username/title and its profile photo.
+  const chatRes = await getChat(token, telegramChatId)
+  const chat = chatRes.ok ? chatRes.result : null
+
+  const [inserted] = await db
+    .insert(telegramChannels)
+    .values({
+      userId: user.id,
+      telegramBotId: PLATFORM_BOT_ID,
+      telegramChatId,
+      username: chat?.username ?? src.username ?? null,
+      title: chat?.title ?? src.title ?? telegramChatId,
+      verified: false,
+    })
+    .returning()
+
+  // Cache the profile photo so the sidebar shows the real avatar.
+  if (inserted) {
+    const photoKey = await storeChannelPhoto(c.env, chat?.photo, inserted.id)
+    if (photoKey) {
+      await db
+        .update(telegramChannels)
+        .set({ photoKey, updatedAt: new Date().toISOString() })
+        .where(eq(telegramChannels.id, inserted.id))
+    }
+  }
 
   const shownName = src.title ?? (src.username ? `@${src.username}` : telegramChatId)
   await reply(

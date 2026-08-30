@@ -129,6 +129,9 @@ export const telegramChannels = sqliteTable(
     username: text('username'),
     title: text('title').notNull(),
     verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
+    // R2 key of the chat's profile photo (Bot API getChat → photo), cached at
+    // connect time or lazily by GET /api/channels/:id/photo.
+    photoKey: text('photo_key'),
     ...timestamps,
   },
   (t) => ({

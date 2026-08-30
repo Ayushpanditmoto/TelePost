@@ -6,6 +6,7 @@ import type { HonoEnv } from '../types'
 import { requireAuth } from '../lib/auth'
 import { getChat, getChatMember, sendMessage } from '../lib/telegram'
 import { countUserChannels, getUserPlan } from '../lib/planLimits'
+import { storeChannelPhoto } from '../lib/media'
 
 // Platform bot that publishes for all users (from TELEGRAM_BOT_TOKEN env).
 const PLATFORM_BOT_ID = 8985221169
@@ -23,6 +24,7 @@ function toPublicChannel(row: typeof telegramChannels.$inferSelect) {
     username: row.username,
     title: row.title,
     verified: row.verified,
+    hasPhoto: Boolean(row.photoKey),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -130,8 +132,20 @@ channelRoutes.post('/', async (c) => {
     })
     .returning()
 
-  const channel = inserted[0]
+  let channel = inserted[0]
   if (!channel) return c.json({ error: 'Failed to connect channel' }, 500)
+
+  // Cache the chat's profile photo (getChat already returned it) so the
+  // sidebar can render the real avatar instead of a letter tile.
+  const photoKey = await storeChannelPhoto(c.env, chat.photo, channel.id)
+  if (photoKey) {
+    const [updated] = await db
+      .update(telegramChannels)
+      .set({ photoKey, updatedAt: new Date().toISOString() })
+      .where(eq(telegramChannels.id, channel.id))
+      .returning()
+    if (updated) channel = updated
+  }
 
   return c.json({ channel: toPublicChannel(channel) }, 201)
 })
@@ -164,9 +178,55 @@ channelRoutes.delete('/:id', async (c) => {
 
   if (!channel) return c.json({ error: 'Channel not found' }, 404)
 
+  // Best-effort cleanup of the cached avatar blob.
+  if (channel.photoKey) {
+    await c.env.MEDIA_BUCKET.delete(channel.photoKey).catch(() => undefined)
+  }
+
   await db.delete(telegramChannels).where(eq(telegramChannels.id, channel.id))
 
   return c.json({ success: true })
+})
+
+// GET /api/channels/:id/photo — the chat's profile photo (avatar).
+// Streams the cached R2 object; rows connected before photos were stored are
+// fetched from the Bot API lazily (once) and then cached.
+channelRoutes.get('/:id/photo', async (c) => {
+  const user = await requireAuth(c)
+  const db = createDb(c.env.DB)
+
+  const [channel] = await db
+    .select()
+    .from(telegramChannels)
+    .where(and(eq(telegramChannels.id, c.req.param('id')), eq(telegramChannels.userId, user.id)))
+    .limit(1)
+  if (!channel) return c.json({ error: 'Channel not found' }, 404)
+
+  let photoKey = channel.photoKey
+  if (!photoKey) {
+    const chatRes = await getChat(c.env.TELEGRAM_BOT_TOKEN, channel.telegramChatId)
+    if (chatRes.ok) {
+      photoKey = await storeChannelPhoto(c.env, chatRes.result.photo, channel.id)
+      if (photoKey) {
+        await db
+          .update(telegramChannels)
+          .set({ photoKey, updatedAt: new Date().toISOString() })
+          .where(eq(telegramChannels.id, channel.id))
+      }
+    }
+  }
+  if (!photoKey) return c.json({ error: 'Channel has no profile photo' }, 404)
+
+  const obj = await c.env.MEDIA_BUCKET.get(photoKey)
+  if (!obj) return c.json({ error: 'Photo missing from storage' }, 404)
+
+  return new Response(obj.body as unknown as ReadableStream, {
+    status: 200,
+    headers: {
+      'Content-Type': obj.httpMetadata?.contentType ?? 'image/jpeg',
+      'Cache-Control': 'private, max-age=86400',
+    },
+  })
 })
 
 // POST /api/channels/:id/verify — send a test message via the platform bot.

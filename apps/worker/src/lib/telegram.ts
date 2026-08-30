@@ -84,11 +84,20 @@ export function getMe(token: string): Promise<TelegramResponse<TelegramUser>> {
   return callTelegram<TelegramUser>(token, 'getMe')
 }
 
+// ChatFullInfo.photo for channels/supergroups with a visible avatar.
+export interface TelegramChatPhoto {
+  small_file_id: string
+  small_file_unique_id?: string
+  big_file_id: string
+  big_file_unique_id?: string
+}
+
 export interface TelegramChat {
   id: number
   type: 'private' | 'group' | 'supergroup' | 'channel'
   title?: string
   username?: string
+  photo?: TelegramChatPhoto
 }
 
 export function getChat(token: string, chatId: string): Promise<TelegramResponse<TelegramChat>> {
@@ -142,4 +151,32 @@ export function deleteMessage(
     chat_id: chatId,
     message_id: messageId,
   })
+}
+
+// Bot API getFile: resolves a file_id to a relative path downloadable from
+// https://api.telegram.org/file/bot<token>/<path> (valid for ~1 hour).
+export function getFile(
+  token: string,
+  fileId: string
+): Promise<TelegramResponse<{ file_path?: string }>> {
+  return callTelegram<{ file_path?: string }>(token, 'getFile', {
+    file_id: fileId,
+  })
+}
+
+// Download a file's bytes (chat photos etc.) via getFile + the file URL.
+export async function downloadTelegramFile(
+  token: string,
+  fileId: string
+): Promise<{ bytes: ArrayBuffer; contentType: string } | null> {
+  const meta = await getFile(token, fileId)
+  if (!meta.ok || !meta.result.file_path) return null
+
+  const res = await fetch(`${API_BASE}/file/bot${token}/${meta.result.file_path}`)
+  if (!res.ok) return null
+
+  return {
+    bytes: await res.arrayBuffer(),
+    contentType: res.headers.get('content-type') ?? 'image/jpeg',
+  }
 }

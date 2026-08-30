@@ -122,7 +122,8 @@ const Pill = styled.span<{ $verified: boolean }>`
 
 export default function SettingsPage() {
   const router = useRouter()
-  const { data: user } = useMe()
+  const { data: me } = useMe()
+  const user = me?.user ?? null
   const { data: channels = [] } = useChannels()
   const logout = useLogout()
   const removeChannel = useRemoveChannel()
@@ -152,7 +153,7 @@ export default function SettingsPage() {
           </Row>
           <Row>
             <Label>Plan</Label>
-            <Value>Free</Value>
+            <Value>{me?.plan?.name ?? 'Free'}</Value>
           </Row>
         </Card>
 

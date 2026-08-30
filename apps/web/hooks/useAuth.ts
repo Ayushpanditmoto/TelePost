@@ -4,21 +4,37 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { SessionUser } from '@/lib/api'
 
-interface MeResponse {
-  user: SessionUser
+// The user's effective plan (active subscription or the seeded Free fallback).
+export interface PlanInfo {
+  slug: string
+  name: string
+  maxChannels: number
+  maxScheduledPosts: number
+  maxMediaMb: number
+  allowRecurring: boolean
 }
 
-// Current authenticated user (null when logged out).
+export interface MeData {
+  user: SessionUser | null
+  plan: PlanInfo | null
+}
+
+interface MeResponse {
+  user: SessionUser
+  plan?: PlanInfo | null
+}
+
+// Current authenticated user + plan (nulls when logged out).
 export function useMe() {
-  return useQuery<SessionUser | null>({
+  return useQuery<MeData>({
     queryKey: ['me'],
     queryFn: async () => {
       try {
         const data = await api<MeResponse>('/api/auth/me')
-        return data.user
+        return { user: data.user, plan: data.plan ?? null }
       } catch (err) {
         if (err instanceof Error && 'status' in err && (err as { status: number }).status === 401) {
-          return null
+          return { user: null, plan: null }
         }
         throw err
       }

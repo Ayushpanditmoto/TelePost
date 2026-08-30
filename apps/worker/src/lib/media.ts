@@ -2,7 +2,8 @@
 import type { Context } from 'hono'
 import { createDb, type Db } from '../db'
 import { postMedia } from '@telepost/db'
-import type { HonoEnv } from '../types'
+import type { Env, HonoEnv } from '../types'
+import { downloadTelegramFile, type TelegramChatPhoto } from './telegram'
 
 export const MAX_MEDIA_SIZE_BYTES = 50 * 1024 * 1024 // 50 MB per file
 
@@ -57,4 +58,29 @@ export async function uploadPostMedia(
   }
 
   return { ok: true, mediaId: row.id, r2Key: row.r2Key }
+}
+
+// Download a chat's profile photo from the Bot API and cache it in R2 under
+// channel-photos/<channelId>. Returns the R2 key, or null when the chat has
+// no photo (or the download fails) — callers treat null as "no photo".
+export async function storeChannelPhoto(
+  env: Env,
+  photo: TelegramChatPhoto | null | undefined,
+  channelId: string
+): Promise<string | null> {
+  const fileId = photo?.small_file_id || photo?.big_file_id
+  if (!fileId) return null
+
+  try {
+    const file = await downloadTelegramFile(env.TELEGRAM_BOT_TOKEN, fileId)
+    if (!file) return null
+
+    const key = `channel-photos/${channelId}`
+    await env.MEDIA_BUCKET.put(key, file.bytes, {
+      httpMetadata: { contentType: file.contentType },
+    })
+    return key
+  } catch {
+    return null
+  }
 }

@@ -8,7 +8,8 @@ import LoadingScreen from '@/components/common/LoadingScreen'
 // Client-side auth guard: bounces to /login when no session exists.
 export default function DashboardGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const { data: user, isLoading } = useMe()
+  const { data: me, isLoading } = useMe()
+  const user = me?.user ?? null
 
   useEffect(() => {
     if (!isLoading && !user) {

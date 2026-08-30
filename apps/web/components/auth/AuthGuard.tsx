@@ -9,7 +9,8 @@ import LoadingScreen from '@/components/common/LoadingScreen'
 // someone who is already logged in never sees the login screen again.
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const { data: user, isLoading } = useMe()
+  const { data: me, isLoading } = useMe()
+  const user = me?.user ?? null
 
   useEffect(() => {
     if (!isLoading && user) {
