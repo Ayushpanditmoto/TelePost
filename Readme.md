@@ -309,10 +309,14 @@ Create a bot and copy the generated token.
 ### Add the bot to your channel
 
 1. Open your Telegram channel.
-2. Open **Administrators**.
-3. Add your TelePost bot.
-4. Give it the required permissions.
-5. Connect the channel inside TelePost.
+2. Open **Manage Channel** → **Administrators**.
+3. Add the TelePost bot (`@Panditfxbot`) as an admin.
+4. Forward **any post** from that channel to the bot's chat.
+5. Done — the channel connects automatically and appears on your dashboard.
+
+Works for **public and private** channels — no ID or @username needed. The
+channel is detected from the forwarded message (private channels never expose
+a @username, but forwards carry the chat info).
 
 Once connected, TelePost can publish your scheduled posts.
 
