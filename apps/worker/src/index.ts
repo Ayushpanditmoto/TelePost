@@ -7,9 +7,6 @@ import { webhookRoutes } from './routes/bot'
 import { channelRoutes } from './routes/channels'
 import { postRoutes } from './routes/posts'
 import { mediaRoutes } from './routes/media'
-import { planRoutes } from './routes/plans'
-import { adminRoutes } from './routes/admin'
-import { paymentRoutes } from './routes/payments'
 import { devRoutes } from './routes/dev'
 import { sessionMiddleware } from './lib/auth'
 import { createDb } from './db'
@@ -17,6 +14,11 @@ import { posts } from '@telepost/db'
 import { claimPostForPublish, type PublishClaim } from './lib/publish'
 import { processPublishMessage } from './lib/publisher'
 import type { Env } from './types'
+
+// How long a 'publishing' claim may sit before the cron treats it as a dead
+// attempt and reclaims it. A Telegram send completes in a few seconds; two
+// minutes is generous headroom for slow media uploads on the free plan.
+const STALE_PUBLISHING_MS = 2 * 60 * 1000
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -68,9 +70,6 @@ app.route('/api/bot', webhookRoutes)
 app.route('/api/channels', channelRoutes)
 app.route('/api/posts', postRoutes)
 app.route('/api/media', mediaRoutes)
-app.route('/api/plans', planRoutes)
-app.route('/api/admin', adminRoutes)
-app.route('/api/payments', paymentRoutes)
 app.route('/api/dev', devRoutes)
 
 // Scheduled cron handler: find due posts and deliver them directly.
@@ -85,6 +84,33 @@ export default {
     const db = createDb(env.DB)
     const now = new Date().toISOString()
 
+    // ─── Recovery: stale 'publishing' posts ──────────────────────────────────────
+    // A delivery that died between claim (status → 'publishing') and its terminal
+    // write (published/failed) used to strand the post forever: the due query
+    // below only selects status='scheduled', so an orphaned 'publishing' row was
+    // never reclaimed and the whole series appeared stuck at its first run.
+    // Normal deliveries finish in a few seconds, so anything still 'publishing'
+    // after STALE_PUBLISHING_MS is a dead attempt — flip it back to 'scheduled'
+    // and let the due query below re-claim it in the same tick. The idempotency
+    // key is reused, so a leftover half-finished attempt can never double-post.
+    const stale = await db
+      .update(posts)
+      .set({ status: 'scheduled', updatedAt: now })
+      .where(
+        and(
+          eq(posts.status, 'publishing'),
+          lte(
+            posts.updatedAt,
+            new Date(Date.now() - STALE_PUBLISHING_MS).toISOString()
+          )
+        )
+      )
+      .returning({ id: posts.id })
+
+    if (stale.length > 0) {
+      console.log(`[CRON] Recovered ${stale.length} stale 'publishing' post(s)`)
+    }
+
     const due = await db
       .select()
       .from(posts)
@@ -97,7 +123,13 @@ export default {
       if (!claimed) continue
       dispatched++
       // Free plan: no Queues — run delivery within the cron invocation.
-      ctx.waitUntil(processPublishMessage(env, claimed).catch(() => undefined))
+      ctx.waitUntil(
+        processPublishMessage(env, claimed).catch((err) => {
+          // Don't swallow silently: log so a stranded delivery is visible in
+          // worker logs (the stale-'publishing' recovery above heals it next run).
+          console.error(`[CRON] Delivery failed for post ${claimed.postId}:`, err)
+        })
+      )
     }
 
     console.log(`[CRON] ${dispatched}/${due.length} due posts dispatched`)

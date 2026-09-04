@@ -13,7 +13,6 @@ import {
   cookieBase,
 } from '../lib/auth'
 import { parseCookies, serializeCookie } from '../lib/cookies'
-import { getUserPlan } from '../lib/planLimits'
 
 export const authRoutes = new Hono<HonoEnv>()
 
@@ -62,27 +61,12 @@ authRoutes.get('/telegram/start/status', async (c) => {
   return c.json({ status: 'complete', user: { id: row.userId } })
 })
 
-// GET /api/auth/me — the authenticated user plus their effective plan (active
-// subscription, falling back to the seeded Free plan) so the dashboard can
-// render the real plan without needing admin-only endpoints.
+// GET /api/auth/me — the authenticated user, or 401 when logged out.
 authRoutes.get('/me', async (c) => {
   const user = await getSessionUser(c)
   if (!user) return c.json({ error: 'Unauthorized' }, 401)
 
-  const plan = await getUserPlan(createDb(c.env.DB), user.id)
-  return c.json({
-    user,
-    plan: plan
-      ? {
-          slug: plan.slug,
-          name: plan.name,
-          maxChannels: plan.maxChannels,
-          maxScheduledPosts: plan.maxScheduledPosts,
-          maxMediaMb: plan.maxMediaMb,
-          allowRecurring: plan.allowRecurring,
-        }
-      : null,
-  })
+  return c.json({ user })
 })
 
 // POST /api/auth/dev — local-development-only login (refuses in production).

@@ -10,7 +10,6 @@ import {
   getChatMember,
   getChatMemberCount,
 } from '../lib/telegram'
-import { countUserChannels, getUserPlan } from '../lib/planLimits'
 import { storeChannelPhoto } from '../lib/media'
 
 // Platform bot that publishes for all users (matches channels.ts / schema).
@@ -207,20 +206,6 @@ async function handleForwardedChannel(
       `✅ “${dupe.title}” is already connected to your TelePost account.`,
     )
     return c.json({ ok: true })
-  }
-
-  // Plan limit.
-  const plan = await getUserPlan(db, user.id)
-  if (plan) {
-    const used = await countUserChannels(db, user.id)
-    if (used >= plan.maxChannels) {
-      await reply(
-        token,
-        senderTelegramId,
-        `Your plan allows ${plan.maxChannels} channel(s). Disconnect one first or upgrade to add more.`,
-      )
-      return c.json({ ok: true })
-    }
   }
 
   // Resolve the chat for canonical username/title and its profile photo.

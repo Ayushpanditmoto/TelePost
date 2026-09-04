@@ -440,8 +440,8 @@ export default function Hero() {
         <PrimaryBtn href="/login" id="hero-get-started-btn">
           ✈ Get Started Free
         </PrimaryBtn>
-        <SecondaryBtn href="#pricing" id="hero-view-plans-btn">
-          View Plans →
+        <SecondaryBtn href="#features" id="hero-view-features-btn">
+          Explore Features →
         </SecondaryBtn>
       </CTAGroup>
 

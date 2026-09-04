@@ -5,7 +5,6 @@ import { postMedia, posts, telegramChannels } from '@telepost/db'
 import type { HonoEnv, SessionUser } from '../types'
 import type { Context } from 'hono'
 import { requireAuth } from '../lib/auth'
-import { countUserScheduledPosts, getUserPlan } from '../lib/planLimits'
 import { claimPostForPublish } from '../lib/publish'
 import { processPublishMessage } from '../lib/publisher'
 import { MAX_MEDIA_SIZE_BYTES, uploadPostMedia } from '../lib/media'
@@ -81,29 +80,6 @@ async function ownedPostOrError(c: Context<HonoEnv>, user: SessionUser, postId: 
     return { ok: false as const, error: 'Post not found', status: 404 as const }
   }
   return { ok: true as const, post, db }
-}
-
-// Enforce plan cap before scheduling more posts. `additional` counts how many
-// new scheduled rows this request will create (1 normally, N for recurrences).
-async function scheduleCapOk(
-  c: Context<HonoEnv>,
-  userId: string,
-  additional = 1
-) {
-  const db = createDb(c.env.DB)
-  const plan = await getUserPlan(db, userId)
-  // No plan record or unlimited (0) → allow.
-  if (!plan || plan.maxScheduledPosts === 0) return { ok: true as const }
-
-  const used = await countUserScheduledPosts(db, userId)
-  if (used + additional > plan.maxScheduledPosts) {
-    const remaining = Math.max(0, plan.maxScheduledPosts - used)
-    return {
-      ok: false as const,
-      error: `Plan limit reached (${plan.maxScheduledPosts} scheduled posts — ${remaining} slots left). Upgrade for more.`,
-    }
-  }
-  return { ok: true as const }
 }
 
 // ─── Media metadata ──────────────────────────────────────────────────────────
@@ -239,15 +215,9 @@ postRoutes.post('/', async (c) => {
       isos.push(parsed.iso)
     }
     occurrenceIsos = isos
-
-    const cap = await scheduleCapOk(c, user.id, isos.length)
-    if (!cap.ok) return c.json({ error: cap.error }, 403)
   } else if (body.scheduledAt !== undefined && body.scheduledAt !== null) {
     const parsed = parseFutureDate(body.scheduledAt)
     if (!parsed.ok) return c.json({ error: parsed.error }, 400)
-
-    const cap = await scheduleCapOk(c, user.id)
-    if (!cap.ok) return c.json({ error: cap.error }, 403)
 
     scheduledAt = parsed.iso
     status = 'scheduled'
@@ -428,8 +398,12 @@ postRoutes.post('/:id/publish', async (c) => {
   if (!claimed) return c.json({ error: 'Failed to queue post' }, 500)
 
   // Deliver directly (free plan, no Queues): run after the response is sent.
+  // The error is logged (not swallowed) so an interrupted delivery is visible;
+  // the cron's stale-'publishing' sweep will reclaim and retry it automatically.
   c.executionCtx.waitUntil(
-    processPublishMessage(c.env, claimed).catch(() => undefined)
+    processPublishMessage(c.env, claimed).catch((err) => {
+      console.error(`[PUBLISH] Delivery failed for post ${claimed.postId}:`, err)
+    })
   )
 
   return c.json({ queued: true, idempotencyKey: claimed.idempotencyKey })
@@ -452,9 +426,6 @@ postRoutes.post('/:id/schedule', async (c) => {
   const body = (await c.req.json<{ scheduledAt?: unknown }>().catch(() => null)) ?? {}
   const parsed = parseFutureDate(body.scheduledAt)
   if (!parsed.ok) return c.json({ error: parsed.error }, 400)
-
-  const cap = await scheduleCapOk(c, user.id)
-  if (!cap.ok) return c.json({ error: cap.error }, 403)
 
   const [updated] = await check.db
     .update(posts)
@@ -533,15 +504,7 @@ postRoutes.post('/:id/media', async (c) => {
     return c.json({ error: `Cannot attach media to a ${post.status} post` }, 409)
   }
 
-  // Plan gate: maxMediaMb of 0 means media is not allowed on this plan.
   const db = createDb(c.env.DB)
-  const plan = await getUserPlan(db, user.id)
-  if (!plan || plan.maxMediaMb === 0) {
-    return c.json(
-      { error: 'Your plan does not include media uploads. Upgrade to Pro.' },
-      403
-    )
-  }
 
   const form = await c.req.parseBody().catch(() => null)
   const fileEntry = form?.file

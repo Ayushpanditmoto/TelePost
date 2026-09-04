@@ -195,7 +195,6 @@ export default function Navbar() {
 
         <NavLinks>
           <NavLink href="#features">Features</NavLink>
-          <NavLink href="#pricing">Pricing</NavLink>
           <NavLink href="#how-it-works">How it works</NavLink>
           <NavLink href="#faq">FAQ</NavLink>
         </NavLinks>

@@ -300,8 +300,8 @@ export default function Footer() {
             <Send size={20} />
             Get Started Free
           </PrimaryBtn>
-          <SecondaryLink href="#pricing" id="footer-pricing-link">
-            View Plans
+          <SecondaryLink href="#features" id="footer-features-link">
+            Explore Features
             <ArrowRight size={18} />
           </SecondaryLink>
         </CTAGroup>
@@ -326,7 +326,6 @@ export default function Footer() {
             <FooterGroup>
               <FooterGroupTitle>Product</FooterGroupTitle>
               <FooterLink href="#features">Features</FooterLink>
-              <FooterLink href="#pricing">Pricing</FooterLink>
               <FooterLink href="#how-it-works">How it works</FooterLink>
               <FooterLink href="#faq">FAQ</FooterLink>
             </FooterGroup>

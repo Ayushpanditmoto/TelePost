@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import styled from 'styled-components'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useQueryClient } from '@tanstack/react-query'
 import AuthGuard from '@/components/auth/AuthGuard'
 import TelegramLoginButton from '@/components/auth/TelegramLoginButton'
@@ -119,8 +119,6 @@ const ErrorText = styled.p`
 
 export default function LoginPage() {
   const router = useRouter()
-  const urlParams = useSearchParams()
-  const upgradeParam = urlParams?.get('upgrade') || ''
   const queryClient = useQueryClient()
   const [devUsername, setDevUsername] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -136,7 +134,7 @@ export default function LoginPage() {
         body: JSON.stringify({ username: devUsername || undefined }),
       })
       await queryClient.invalidateQueries({ queryKey: ['me'] })
-      router.push(upgradeParam ? `/dashboard/settings?upgrade=${upgradeParam}` : '/dashboard')
+      router.push('/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {

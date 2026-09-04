@@ -7,17 +7,6 @@ compatibility_flags = ["nodejs_compat"]
 ENVIRONMENT = "production"
 APP_URL = "https://telegrampost.vercel.app"
 CORS_ORIGINS = "https://telegrampost.vercel.app"
-# Admin panel identity — matched by /api/admin/* routes (key lives in secrets).
-ADMIN_EMAIL = "ayushpanditmoto@gmail.com"
-
-# Manual payment via TrustWallet QR. Set PAYMENT_ADDRESS to your wallet address
-# (e.g. USDT-TRC20) to enable the "Pay with QR code" flow in Settings, then
-# optionally attach your QR image (hosted anywhere) via PAYMENT_QR_URL.
-PAYMENT_ADDRESS = "0x15d0B46c309999f2fB0fD58F80C4d118515b2DEf"
-# QR image served straight from the Vercel-hosted web build (/public/payment-qr.jpeg)
-PAYMENT_QR_URL = "https://telegrampost.vercel.app/payment-qr.jpeg"
-PAYMENT_NETWORK = "ETH (ERC20) · USDT"
-PAYMENT_NOTE = "Send the exact amount shown, then upload the payment screenshot for manual approval."
 
 [[d1_databases]]
 binding = "DB"

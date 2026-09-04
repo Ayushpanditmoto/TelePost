@@ -170,20 +170,21 @@ TelePost takes care of the rest.
 
 ---
 
-## 💰 Pricing
+## 💰 Free Forever
 
-TelePost keeps scheduling simple.
+TelePost is **completely free**. No plans, no paywalls, no subscriptions — every
+feature is available to everyone:
 
-|                      |      Free      |      Pro      |
-| :------------------- | :------------: | :-----------: |
-| Telegram Channels    |       1        |   Multiple    |
-| Scheduled Posts      | **10 / month** | **Unlimited** |
-| Edit Scheduled Posts |       ✓        |       ✓       |
-| Automatic Publishing |       ✓        |       ✓       |
-| Telegram Login       |       ✓        |       ✓       |
-| Dashboard            |       ✓        |       ✓       |
+| Feature                | Available |
+| :--------------------- | :-------: |
+| Telegram Channels      | Unlimited |
+| Scheduled Posts        | Unlimited |
+| Edit Scheduled Posts   |     ✓     |
+| Automatic Publishing   |     ✓     |
+| Telegram Login         |     ✓     |
+| Dashboard              |     ✓     |
 
-> Pricing and limits may change as TelePost evolves.
+> No credit card, no upgrade prompts — just automatic scheduling.
 
 ---
 
@@ -365,8 +366,7 @@ Store sensitive values inside environment variables or your deployment platform'
 
 - [x] Telegram authentication
 - [x] Telegram bot integration
-- [ ] Multiple channels
-- [ ] Subscription management
+- [x] Multiple channels (unlimited)
 - [ ] Team collaboration
 
 ---

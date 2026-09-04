@@ -436,7 +436,6 @@ export default function LeftPanel() {
     useDashboardStore()
   const { data: me, isLoading: meLoading } = useMe()
   const user = me?.user ?? null
-  const planLabel = me?.plan?.name ? `${me.plan.name} Plan` : 'Free Plan'
   const { data: channels = [], isLoading: channelsLoading } = useChannels()
   const logout = useLogout()
   const [loggingOut, setLoggingOut] = React.useState(false)
@@ -577,7 +576,7 @@ export default function LeftPanel() {
             <UserAvatar>{(user?.displayName ?? 'A').charAt(0).toUpperCase()}</UserAvatar>
             <UserInfo>
               <UserName>@{user?.username ?? 'username'}</UserName>
-              <UserPlan>{planLabel}</UserPlan>
+              <UserPlan>Free forever</UserPlan>
             </UserInfo>
             <LogoutBtn
               onClick={handleLogout}

@@ -11,7 +11,6 @@ import {
   getChatMemberCount,
   sendMessage,
 } from '../lib/telegram'
-import { countUserChannels, getUserPlan } from '../lib/planLimits'
 import { storeChannelPhoto } from '../lib/media'
 
 // Platform bot that publishes for all users (from TELEGRAM_BOT_TOKEN env).
@@ -148,18 +147,6 @@ channelRoutes.post('/', async (c) => {
     .limit(1)
   if (duplicate[0]) {
     return c.json({ error: 'This channel is already connected' }, 409)
-  }
-
-  // Enforce plan limit.
-  const plan = await getUserPlan(db, user.id)
-  if (plan) {
-    const existing = await countUserChannels(db, user.id)
-    if (existing >= plan.maxChannels) {
-      return c.json(
-        { error: `Plan limit reached (${plan.maxChannels} channels). Upgrade to connect more.` },
-        403
-      )
-    }
   }
 
   // Current member count (bot is admin, so getChatMemberCount is allowed).

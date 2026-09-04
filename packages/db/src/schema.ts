@@ -2,7 +2,6 @@ import {
   sqliteTable,
   text,
   integer,
-  real,
   uniqueIndex,
   index,
 } from 'drizzle-orm/sqlite-core'
@@ -38,55 +37,6 @@ export const users = sqliteTable(
   },
   (t) => ({
     telegramIdIdx: uniqueIndex('users_telegram_id_idx').on(t.telegramId),
-  })
-)
-
-// ─── Plans ───────────────────────────────────────────────────────────────────
-
-export const plans = sqliteTable('plans', {
-  id: id(),
-  name: text('name').notNull(),
-  slug: text('slug').notNull().unique(),
-  price: real('price').notNull(),
-  currency: text('currency').notNull().default('USD'),
-  maxChannels: integer('max_channels').notNull(),
-  maxScheduledPosts: integer('max_scheduled_posts').notNull(),
-  maxMediaMb: integer('max_media_mb').notNull().default(0),
-  allowRecurring: integer('allow_recurring', { mode: 'boolean' })
-    .notNull()
-    .default(false),
-  features: text('features', { mode: 'json' }).$type<string[]>().notNull(),
-  active: integer('active', { mode: 'boolean' }).notNull().default(true),
-  createdAt: text('created_at')
-    .notNull()
-    .default(sql`(datetime('now'))`),
-})
-
-// ─── Subscriptions ───────────────────────────────────────────────────────────
-
-export const subscriptions = sqliteTable(
-  'subscriptions',
-  {
-    id: id(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    planId: text('plan_id')
-      .notNull()
-      .references(() => plans.id),
-    status: text('status', {
-      enum: ['active', 'expired', 'cancelled', 'pending'],
-    })
-      .notNull()
-      .default('pending'),
-    startedAt: text('started_at'),
-    expiresAt: text('expires_at'),
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`(datetime('now'))`),
-  },
-  (t) => ({
-    userIdIdx: index('subscriptions_user_id_idx').on(t.userId),
   })
 )
 
@@ -201,46 +151,6 @@ export const postMedia = sqliteTable(
   })
 )
 
-// ─── Payments ────────────────────────────────────────────────────────────────
-
-export const payments = sqliteTable(
-  'payments',
-  {
-    id: id(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    planId: text('plan_id')
-      .notNull()
-      .references(() => plans.id),
-    provider: text('provider').notNull(),
-    providerPaymentId: text('provider_payment_id'),
-    amount: real('amount').notNull(),
-    currency: text('currency').notNull(),
-    status: text('status', {
-      enum: ['pending', 'confirmed', 'failed', 'expired'],
-    })
-      .notNull()
-      .default('pending'),
-    transactionReference: text('transaction_reference'),
-    createdAt: text('created_at')
-      .notNull()
-      .default(sql`(datetime('now'))`),
-    confirmedAt: text('confirmed_at'),
-    // Manual QR approvals: R2 key of the user's payment screenshot.
-    screenshotKey: text('screenshot_key'),
-    // Optional user note submitted alongside the screenshot.
-    note: text('note'),
-    // Set by the admin when rejecting a pending payment.
-    rejectionReason: text('rejection_reason'),
-    reviewedAt: text('reviewed_at'),
-    reviewedBy: text('reviewed_by'),
-  },
-  (t) => ({
-    userIdIdx: index('payments_user_id_idx').on(t.userId),
-  })
-)
-
 // ─── Post Analytics ──────────────────────────────────────────────────────────
 
 export const postAnalytics = sqliteTable(
@@ -311,11 +221,8 @@ export const authNonces = sqliteTable(
 export type Session = typeof sessions.$inferSelect
 export type AuthNonce = typeof authNonces.$inferSelect
 export type User = typeof users.$inferSelect
-export type Plan = typeof plans.$inferSelect
-export type Subscription = typeof subscriptions.$inferSelect
 export type TelegramBot = typeof telegramBots.$inferSelect
 export type TelegramChannel = typeof telegramChannels.$inferSelect
 export type Post = typeof posts.$inferSelect
 export type PostMedia = typeof postMedia.$inferSelect
-export type Payment = typeof payments.$inferSelect
 export type PostAnalytics = typeof postAnalytics.$inferSelect
