@@ -6,6 +6,7 @@ import type { Env } from '../types'
 import {
   sendMessage,
   sendMedia,
+  sendMediaGroup,
   type TelegramResponse,
   type TelegramMessage,
 } from './telegram'
@@ -125,17 +126,51 @@ async function deliverPost(
     return sendMessage(token, chatId, content)
   }
 
-  const first = mediaRows[0]
-  if (!first) {
+  if (mediaRows.length === 0) {
     return sendMessage(token, chatId, content)
   }
-  const obj = await env.MEDIA_BUCKET.get(first.r2Key)
-  if (!obj) {
-    return { ok: false, description: `Media missing from storage: ${first.r2Key}` }
-  }
-  const bytes = await obj.arrayBuffer()
-  const filename = first.r2Key.split('/').pop() ?? 'media'
-  const method = first.mimeType.startsWith('video/') ? ('sendVideo' as const) : ('sendPhoto' as const)
 
-  return sendMedia(token, method, chatId, bytes, filename, first.mimeType, content)
+  const items: Array<{
+    bytes: ArrayBuffer
+    filename: string
+    mimeType: string
+    caption?: string
+  }> = []
+  for (const media of mediaRows) {
+    const obj = await env.MEDIA_BUCKET.get(media.r2Key)
+    if (!obj) {
+      return { ok: false, description: `Media missing from storage: ${media.r2Key}` }
+    }
+    items.push({
+      bytes: await obj.arrayBuffer(),
+      filename: media.r2Key.split('/').pop() ?? 'media',
+      mimeType: media.mimeType,
+      ...(items.length === 0 ? { caption: content } : {}),
+    })
+  }
+
+  // Telegram accepts at most 10 items per media group.
+  let firstMessage: TelegramMessage | undefined
+  for (let i = 0; i < items.length; i += 10) {
+    const result =
+      items.length === 1
+        ? await sendMedia(
+            token,
+            items[0]!.mimeType.startsWith('video/') ? 'sendVideo' : 'sendPhoto',
+            chatId,
+            items[0]!.bytes,
+            items[0]!.filename,
+            items[0]!.mimeType,
+            items[0]!.caption
+          )
+        : await sendMediaGroup(token, chatId, items.slice(i, i + 10))
+    if (!result.ok) return result
+    if (!firstMessage) {
+      firstMessage = Array.isArray(result.result) ? result.result[0] : result.result
+    }
+  }
+
+  return firstMessage
+    ? { ok: true, result: firstMessage }
+    : { ok: false, description: 'Telegram returned no media message' }
 }

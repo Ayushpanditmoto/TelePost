@@ -74,13 +74,16 @@ channelRoutes.get('/', async (c) => {
     .orderBy(telegramChannels.createdAt)
 
   const now = Date.now()
-  for (const channel of channels) {
-    const age = channel.memberCountUpdatedAt
-      ? now - new Date(channel.memberCountUpdatedAt).getTime()
-      : Number.POSITIVE_INFINITY
-    if (age < MEMBER_COUNT_TTL_MS) continue
-    await refreshMemberCount(c, db, channel)
-  }
+  await Promise.all(
+    channels.map((channel) => {
+      const age = channel.memberCountUpdatedAt
+        ? now - new Date(channel.memberCountUpdatedAt).getTime()
+        : Number.POSITIVE_INFINITY
+      return age < MEMBER_COUNT_TTL_MS
+        ? undefined
+        : refreshMemberCount(c, db, channel)
+    })
+  )
 
   return c.json({ channels: channels.map(toPublicChannel) })
 })

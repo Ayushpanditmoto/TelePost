@@ -204,6 +204,7 @@ export const authNonces = sqliteTable(
     sessionId: text('session_id'), // populated once the bot sees /start
     userId: text('user_id'),
     consumedAt: text('consumed_at'),
+    browserConsumedAt: text('browser_consumed_at'),
     expiresAt: text('expires_at')
       .notNull()
       .default(sql`(datetime('now'))`),

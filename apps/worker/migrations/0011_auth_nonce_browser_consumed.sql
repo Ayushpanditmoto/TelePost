@@ -1,0 +1,1 @@
+ALTER TABLE auth_nonces ADD COLUMN browser_consumed_at TEXT;

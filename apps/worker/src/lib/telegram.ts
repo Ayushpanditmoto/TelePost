@@ -80,6 +80,37 @@ export async function sendMedia(
   return parseTelegramResponse<TelegramMessage>(res)
 }
 
+export async function sendMediaGroup(
+  token: string,
+  chatId: string,
+  media: Array<{
+    bytes: ArrayBuffer
+    filename: string
+    mimeType: string
+    caption?: string
+  }>
+): Promise<TelegramResponse<TelegramMessage[]>> {
+  const form = new FormData()
+  form.append('chat_id', chatId)
+  form.append(
+    'media',
+    JSON.stringify(media.map((item, index) => ({
+      type: item.mimeType.startsWith('video/') ? 'video' : 'photo',
+      media: `attach://media${index}`,
+      ...(item.caption ? { caption: item.caption.slice(0, 1024) } : {}),
+    })))
+  )
+  media.forEach((item, index) => {
+    form.append(`media${index}`, new Blob([item.bytes], { type: item.mimeType }), item.filename)
+  })
+
+  const res = await fetch(`${API_BASE}/bot${token}/sendMediaGroup`, {
+    method: 'POST',
+    body: form,
+  })
+  return parseTelegramResponse<TelegramMessage[]>(res)
+}
+
 export function getMe(token: string): Promise<TelegramResponse<TelegramUser>> {
   return callTelegram<TelegramUser>(token, 'getMe')
 }

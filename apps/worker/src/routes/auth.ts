@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { createDb } from '../db'
 import { users, authNonces } from '@telepost/db'
 import type { HonoEnv } from '../types'
@@ -48,17 +48,34 @@ authRoutes.get('/telegram/start/status', async (c) => {
     .limit(1)
     .then((r) => r[0])
 
-  if (!row) return c.json({ status: 'expired' }, 404)
+  if (!row || new Date(row.expiresAt).getTime() <= Date.now()) {
+    return c.json({ status: 'expired' }, 404)
+  }
   if (!row.sessionId || !row.userId) return c.json({ status: 'pending' }, 202)
+
+  // A Telegram /start consumes the nonce for the bot, while this separate
+  // marker makes handing the session cookie to the browser one-time too.
+  if (row.browserConsumedAt) return c.json({ status: 'consumed' }, 410)
+
+  const consumed = await db
+    .update(authNonces)
+    .set({ browserConsumedAt: new Date().toISOString() })
+    .where(and(eq(authNonces.id, nonceId), isNull(authNonces.browserConsumedAt)))
+    .returning({ id: authNonces.id, sessionId: authNonces.sessionId, userId: authNonces.userId })
+
+  const completed = consumed[0]
+  if (!completed?.sessionId || !completed.userId) {
+    return c.json({ status: 'consumed' }, 410)
+  }
 
   // The bot already issued a session in /start. Hand that session id to the
   // browser as its cookie so the web app is now logged in.
   c.header(
     'Set-Cookie',
-    serializeCookie(SESSION_COOKIE, row.sessionId, cookieBase(c.env))
+    serializeCookie(SESSION_COOKIE, completed.sessionId, cookieBase(c.env))
   )
 
-  return c.json({ status: 'complete', user: { id: row.userId } })
+  return c.json({ status: 'complete', user: { id: completed.userId } })
 })
 
 // GET /api/auth/me — the authenticated user, or 401 when logged out.

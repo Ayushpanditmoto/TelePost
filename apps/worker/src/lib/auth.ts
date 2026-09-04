@@ -52,7 +52,10 @@ export async function getSessionUser(
 
   const found = rows[0]
   if (!found) return null
-  if (new Date(found.session.expiresAt).getTime() <= Date.now()) return null
+  if (new Date(found.session.expiresAt).getTime() <= Date.now()) {
+    await db.delete(sessions).where(eq(sessions.id, found.session.id))
+    return null
+  }
 
   const u = found.user
   return {
