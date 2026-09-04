@@ -1,15 +1,16 @@
 'use client'
 
 import styled from 'styled-components'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Settings as SettingsIcon } from 'lucide-react'
 import { useMe, useLogout } from '@/hooks/useAuth'
 import { useChannels, useRemoveChannel, useVerifyChannel } from '@/hooks/useChannels'
+import ViewHeader from '@/components/dashboard/ViewHeader'
 
 const Page = styled.main`
-  min-height: 100vh;
+  min-height: 100%;
   background: ${({ theme }) => theme.colors.bg.primary};
-  padding: ${({ theme }) => theme.spacing['2xl']};
+  padding: ${({ theme }) => theme.spacing['2xl']} clamp(20px, 4vw, 64px);
 `
 
 const Inner = styled.div`
@@ -20,35 +21,12 @@ const Inner = styled.div`
   gap: ${({ theme }) => theme.spacing.lg};
 `
 
-const TopBar = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-`
-
-const BackLink = styled(Link)`
-  color: ${({ theme }) => theme.colors.text.muted};
-  font-size: ${({ theme }) => theme.font.size.sm};
-  text-decoration: none;
-  transition: color ${({ theme }) => theme.transition.fast};
-
-  &:hover {
-    color: ${({ theme }) => theme.colors.accent};
-  }
-`
-
-const Title = styled.h1`
-  font-size: ${({ theme }) => theme.font.size['2xl']};
-  font-weight: ${({ theme }) => theme.font.weight.bold};
-  color: ${({ theme }) => theme.colors.text.primary};
-  margin-bottom: ${({ theme }) => theme.spacing.xl};
-`
-
 const Card = styled.section`
   background: ${({ theme }) => theme.colors.bg.secondary};
   border: 1px solid ${({ theme }) => theme.colors.border.subtle};
   border-radius: ${({ theme }) => theme.radius.lg};
   padding: ${({ theme }) => theme.spacing.xl};
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
 `
 
 const CardTitle = styled.h2`
@@ -176,10 +154,12 @@ export default function SettingsPage() {
   return (
     <Page>
       <Inner>
-        <TopBar>
-          <BackLink href="/dashboard">← Back to dashboard</BackLink>
-        </TopBar>
-        <Title>Settings</Title>
+        <ViewHeader
+          icon={SettingsIcon}
+          eyebrow="Workspace preferences"
+          title="Settings"
+          subtitle="Manage your account, connected channels, and publishing access."
+        />
 
         <Card>
           <CardTitle>Account</CardTitle>

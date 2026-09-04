@@ -2,17 +2,18 @@
 
 import React, { useState } from 'react'
 import styled from 'styled-components'
-import Link from 'next/link'
+import { History as HistoryIcon } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { Post, PostStatus } from '@/hooks/usePosts'
 import { formatPostDate } from '@/lib/mockData'
 import { useChannels } from '@/hooks/useChannels'
+import ViewHeader from '@/components/dashboard/ViewHeader'
 
 const Page = styled.main`
-  min-height: 100vh;
+  min-height: 100%;
   background: ${({ theme }) => theme.colors.bg.primary};
-  padding: ${({ theme }) => theme.spacing['2xl']};
+  padding: ${({ theme }) => theme.spacing['2xl']} clamp(20px, 4vw, 64px);
 `
 
 const Inner = styled.div`
@@ -20,35 +21,17 @@ const Inner = styled.div`
   margin: 0 auto;
 `
 
-const TopBar = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: ${({ theme }) => theme.spacing.xl};
-`
-
-const BackLink = styled(Link)`
-  color: ${({ theme }) => theme.colors.text.muted};
-  font-size: ${({ theme }) => theme.font.size.sm};
-  text-decoration: none;
-  transition: color ${({ theme }) => theme.transition.fast};
-
-  &:hover {
-    color: ${({ theme }) => theme.colors.accent};
-  }
-`
-
-const Title = styled.h1`
-  font-size: ${({ theme }) => theme.font.size['2xl']};
-  font-weight: ${({ theme }) => theme.font.weight.bold};
-  color: ${({ theme }) => theme.colors.text.primary};
-`
-
 const FilterBar = styled.div`
   display: flex;
   gap: ${({ theme }) => theme.spacing.sm};
   flex-wrap: wrap;
   margin-bottom: ${({ theme }) => theme.spacing.lg};
+  padding: 4px;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid ${({ theme }) => theme.colors.border.subtle};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.colors.bg.secondary};
 `
 
 const Chip = styled.button<{ $active?: boolean }>`
@@ -84,6 +67,13 @@ const Item = styled.li`
   display: flex;
   flex-direction: column;
   gap: 4px;
+  transition: border-color ${({ theme }) => theme.transition.fast},
+    background ${({ theme }) => theme.transition.fast};
+
+  &:hover {
+    border-color: ${({ theme }) => theme.colors.border.accent};
+    background: ${({ theme }) => theme.colors.bg.messageHover};
+  }
 `
 
 const ItemTop = styled.div`
@@ -143,10 +133,12 @@ export default function HistoryPage() {
   return (
     <Page>
       <Inner>
-        <TopBar>
-          <Title>History</Title>
-          <BackLink href="/dashboard">← Back to dashboard</BackLink>
-        </TopBar>
+        <ViewHeader
+          icon={HistoryIcon}
+          eyebrow="Content archive"
+          title="History"
+          subtitle="Review every draft, scheduled post, and published delivery in one place."
+        />
 
         <FilterBar>
           {(

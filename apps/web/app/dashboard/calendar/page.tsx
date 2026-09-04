@@ -2,51 +2,22 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
-import Link from "next/link";
+import { CalendarDays } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { Post } from "@/hooks/usePosts";
 import { formatPostTime } from "@/lib/mockData";
+import ViewHeader from "@/components/dashboard/ViewHeader";
 
 const Page = styled.main`
-  min-height: 100vh;
+  min-height: 100%;
   background: ${({ theme }) => theme.colors.bg.primary};
-  padding: ${({ theme }) => theme.spacing["2xl"]};
+  padding: ${({ theme }) => theme.spacing["2xl"]} clamp(20px, 4vw, 64px);
 `;
 
 const Inner = styled.div`
   max-width: 640px;
   margin: 0 auto;
-`;
-
-const TopBar = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: ${({ theme }) => theme.spacing.xl};
-`;
-
-const BackLink = styled(Link)`
-  color: ${({ theme }) => theme.colors.text.muted};
-  font-size: ${({ theme }) => theme.font.size.sm};
-  text-decoration: none;
-  transition: color ${({ theme }) => theme.transition.fast};
-
-  &:hover {
-    color: ${({ theme }) => theme.colors.accent};
-  }
-`;
-
-const Title = styled.h1`
-  font-size: ${({ theme }) => theme.font.size["2xl"]};
-  font-weight: ${({ theme }) => theme.font.weight.bold};
-  color: ${({ theme }) => theme.colors.text.primary};
-`;
-
-const Subtitle = styled.p`
-  font-size: ${({ theme }) => theme.font.size.sm};
-  color: ${({ theme }) => theme.colors.text.muted};
-  margin-bottom: ${({ theme }) => theme.spacing.xl};
 `;
 
 const DayGroup = styled.section`
@@ -72,6 +43,13 @@ const Card = styled.div`
   display: flex;
   flex-direction: column;
   gap: 4px;
+  transition: transform ${({ theme }) => theme.transition.fast},
+    border-color ${({ theme }) => theme.transition.fast};
+
+  &:hover {
+    transform: translateX(3px);
+    border-color: ${({ theme }) => theme.colors.border.accent};
+  }
 `;
 
 const CardTop = styled.div`
@@ -157,11 +135,12 @@ export default function CalendarPage() {
   return (
     <Page>
       <Inner>
-        <TopBar>
-          <Title>Calendar</Title>
-          <BackLink href="/dashboard">← Back to dashboard</BackLink>
-        </TopBar>
-        <Subtitle>Upcoming scheduled posts, soonest first.</Subtitle>
+        <ViewHeader
+          icon={CalendarDays}
+          eyebrow="Publishing schedule"
+          title="Calendar"
+          subtitle="Upcoming scheduled posts, arranged by the day they go live."
+        />
 
         {isLoading ? (
           <Empty>Loading…</Empty>
