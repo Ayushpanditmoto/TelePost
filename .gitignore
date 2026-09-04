@@ -46,3 +46,4 @@ coverage/
 # ── Turbopack / Next.js cache ────────────────────────────────
 .turbo/
 .vercel
+.env*
