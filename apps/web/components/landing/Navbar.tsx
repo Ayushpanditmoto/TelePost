@@ -118,7 +118,7 @@ const NavLink = styled.a`
 `;
 
 // ----- Login Link (styled Link with button styles) -----
-const LoginLink = styled(Link)`
+const LoginLink = styled(Link)<{ $loading?: boolean }>`
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.spacing.sm};
@@ -137,6 +137,8 @@ const LoginLink = styled(Link)`
   cursor: pointer;
   box-shadow: 0 2px 16px ${({ theme }) => theme.colors.accent}30;
   text-decoration: none;
+  opacity: ${({ $loading }) => ($loading ? 0.7 : 1)};
+  pointer-events: ${({ $loading }) => ($loading ? 'none' : 'auto')};
 
   &:hover {
     transform: translateY(-2px);
@@ -174,7 +176,7 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   // Session-aware CTA: logged-in visitors get a direct link to the dashboard
   // instead of the Telegram login screen (/login itself redirects them too).
-  const { data: me } = useMe();
+  const { data: me, isLoading: meLoading } = useMe();
   const user = me?.user ?? null;
 
   useEffect(() => {
@@ -199,9 +201,13 @@ export default function Navbar() {
           <NavLink href="#faq">FAQ</NavLink>
         </NavLinks>
 
-        <LoginLink href={user ? '/dashboard' : '/login'} id="navbar-login-btn">
+        <LoginLink
+          href={meLoading ? '#' : user ? '/dashboard' : '/login'}
+          $loading={meLoading}
+          id="navbar-login-btn"
+        >
           <TelegramIcon />
-          {user ? 'Open Dashboard' : 'Login with Telegram'}
+          {meLoading ? 'Checking session...' : user ? 'Open Dashboard' : 'Login with Telegram'}
         </LoginLink>
       </Inner>
     </Nav>

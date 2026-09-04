@@ -3,6 +3,7 @@
 import React from "react";
 import styled, { keyframes } from "styled-components";
 import Link from "next/link";
+import { useMe } from "@/hooks/useAuth";
 
 // ----- Animations -----
 const float = keyframes`
@@ -503,6 +504,9 @@ const PreviewSendBtn = styled.div`
 // Main Component
 // ============================================
 export default function Hero() {
+  const { data: me, isLoading: meLoading } = useMe();
+  const user = me?.user ?? null;
+
   return (
     <HeroSection id="hero">
       <GridPattern />
@@ -526,8 +530,8 @@ export default function Hero() {
       </Subheading>
 
       <CTAGroup>
-        <PrimaryBtn href="/login" id="hero-get-started-btn">
-          ✈ Get Started Free
+        <PrimaryBtn href={meLoading ? "#hero" : user ? "/dashboard" : "/login"} id="hero-get-started-btn">
+          ✈ {meLoading ? "Checking session..." : user ? "Open Dashboard" : "Get Started Free"}
         </PrimaryBtn>
         <SecondaryBtn href="#features" id="hero-view-features-btn">
           Explore Features →
