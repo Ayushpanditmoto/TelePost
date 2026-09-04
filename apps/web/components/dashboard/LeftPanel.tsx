@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import styled, { keyframes } from 'styled-components'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { Send } from 'lucide-react'
 import { useDashboardStore } from '@/store/dashboardStore'
 import { useMe, useLogout } from '@/hooks/useAuth'
@@ -432,6 +432,7 @@ const AVATAR_COLORS = ['#2196f3', '#9c27b0', '#f44336', '#4caf50', '#ff9800']
 
 export default function LeftPanel() {
   const router = useRouter()
+  const pathname = usePathname()
   const { selectedChannelId, setSelectedChannelId, clearSelectedPost } =
     useDashboardStore()
   const { data: me, isLoading: meLoading } = useMe()
@@ -548,15 +549,15 @@ export default function LeftPanel() {
         <Divider />
         <SectionLabel $delay="0.28s">Navigation</SectionLabel>
 
-        <NavItem href="/dashboard/calendar" $delay="0.3s" id="nav-calendar">
+        <NavItem href="/dashboard/calendar" $active={pathname === '/dashboard/calendar'} $delay="0.3s" id="nav-calendar">
           <NavIcon>📅</NavIcon>
           Calendar
         </NavItem>
-        <NavItem href="/dashboard/history" $delay="0.34s" id="nav-history">
+        <NavItem href="/dashboard/history" $active={pathname === '/dashboard/history'} $delay="0.34s" id="nav-history">
           <NavIcon>📜</NavIcon>
           History
         </NavItem>
-        <NavItem href="/dashboard/settings" $delay="0.38s" id="nav-settings">
+        <NavItem href="/dashboard/settings" $active={pathname === '/dashboard/settings'} $delay="0.38s" id="nav-settings">
           <NavIcon>⚙️</NavIcon>
           Settings
         </NavItem>
