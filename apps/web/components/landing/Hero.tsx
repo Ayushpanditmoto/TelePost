@@ -20,17 +20,30 @@ const fadeUp = keyframes`
   to { opacity: 1; transform: translateY(0); }
 `;
 
-// ----- Hero Section -----
+// ----- Hero Section (split layout: copy left, dashboard preview right) -----
 const HeroSection = styled.section`
   min-height: 100vh;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 120px ${({ theme }) => theme.spacing["2xl"]} 80px;
+  padding: 120px ${({ theme }) => theme.spacing["2xl"]} 96px;
   position: relative;
   overflow: hidden;
+`
+
+const HeroInner = styled.div`
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 64px;
+  align-items: center;
+
+  @media (max-width: ${({ theme }) => theme.breakpoint.lg}) {
+    grid-template-columns: 1fr;
+    gap: 56px;
+    text-align: center;
+   }
 `;
 
 const GradientOrb = styled.div<{
@@ -133,9 +146,25 @@ const CTAGroup = styled.div`
   gap: ${({ theme }) => theme.spacing.md};
   margin-top: ${({ theme }) => theme.spacing["2xl"]};
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start;
   animation: ${fadeUp} 0.6s ease 0.3s both;
+
+
+  @media (max-width: ${({ theme }) => theme.breakpoint.lg}) {
+    justify-content: center;
+   }
 `;
+
+// Left column wrapper (keeps the original fade-up stagger).
+const HeroCopy = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+
+  @media (max-width: ${({ theme }) => theme.breakpoint.lg}) {
+    align-items: center;
+   }
+`
 
 // --- PRIMARY CTA BUTTON (now a styled Link) ---
 const PrimaryBtn = styled(Link)`
@@ -187,6 +216,7 @@ const SecondaryBtn = styled(Link)`
 const Stats = styled.div`
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: ${({ theme }) => theme.spacing["2xl"]};
   margin-top: ${({ theme }) => theme.spacing["3xl"]};
   animation: ${fadeUp} 0.6s ease 0.4s both;
@@ -222,13 +252,36 @@ const StatDivider = styled.div`
 `;
 
 const PreviewWrapper = styled.div`
+  position: relative;
   width: 100%;
-  max-width: 1100px;
-  margin: 72px auto 0;
+  max-width: 520px;
+  justify-self: center;
   animation: ${fadeUp} 0.8s ease 0.5s both;
+
+
+  // Glow behind the product shot.
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -12%;
+    background: radial-gradient(circle, rgba(33,150,243,0.25), transparent 65%);
+    filter: blur(24px);
+    z-index: 0;
+    pointer-events: none;
+   }
+
+  // Slight tilt makes the mockup feel like a floating product shot.
+
+  transform: rotate(-1.2deg);
+
+  @media (max-width: ${({ theme }) => theme.breakpoint.lg}) {
+    transform: none;
+   }
 `;
 
 const PreviewFrame = styled.div`
+  position: relative;
+  z-index: 1;
   border-radius: ${({ theme }) => theme.radius.lg};
   border: 1px solid ${({ theme }) => theme.colors.border.subtle};
   background: ${({ theme }) => theme.colors.bg.secondary};
@@ -240,10 +293,37 @@ const PreviewFrame = styled.div`
 const PreviewBar = styled.div`
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
   padding: 12px 16px;
   border-bottom: 1px solid ${({ theme }) => theme.colors.border.subtle};
   background: ${({ theme }) => theme.colors.bg.tertiary};
+`
+
+const PreviewBarLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`
+
+const PreviewUrlPill = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: ${({ theme }) => theme.radius.full};
+  background: ${({ theme }) => theme.colors.bg.input};
+  border: 1px solid ${({ theme }) => theme.colors.border.subtle};
+  font-size: ${({ theme }) => theme.font.size.xs};
+  color: ${({ theme }) => theme.colors.text.muted};
+`
+
+const LiveDot = styled.span`
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: ${({ theme }) => theme.colors.status.published};
+  box-shadow: 0 0 0 3px ${({ theme }) => theme.colors.status.publishedBg};
 `;
 
 const Dot = styled.div<{ $color: string }>`
@@ -255,10 +335,10 @@ const Dot = styled.div<{ $color: string }>`
 
 const PreviewContent = styled.div`
   display: flex;
-  height: 420px;
+  height: 460px;
 
   @media (max-width: ${({ theme }) => theme.breakpoint.md}) {
-    height: 300px;
+    height: 320px;
   }
 `;
 
@@ -311,6 +391,13 @@ const PreviewChannelAvatar = styled.div<{ $color: string }>`
 const PreviewChannelName = styled.div`
   font-size: ${({ theme }) => theme.font.size.sm};
   color: ${({ theme }) => theme.colors.text.primary};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+`
+
+const PreviewMemberCount = styled.span`
+  margin-left: auto;
+  font-size: ${({ theme }) => theme.font.size.xs};
+  color: ${({ theme }) => theme.colors.text.muted};
   font-weight: ${({ theme }) => theme.font.weight.medium};
 `;
 
@@ -422,7 +509,9 @@ export default function Hero() {
       <GradientOrb $x="10%" $y="20%" $color="#2196f3" $size="600px" />
       <GradientOrb $x="70%" $y="60%" $color="#1565c0" $size="400px" />
 
-      <Badge>
+      <HeroInner>
+        <HeroCopy>
+        <Badge>
         <Pulse />
         Telegram Channel Management
       </Badge>
@@ -461,13 +550,20 @@ export default function Hero() {
           <StatLabel>Uptime</StatLabel>
         </Stat>
       </Stats>
+      </HeroCopy>
 
       <PreviewWrapper>
         <PreviewFrame>
           <PreviewBar>
-            <Dot $color="#ff5f57" />
-            <Dot $color="#febc2e" />
-            <Dot $color="#28c840" />
+            <PreviewBarLeft>
+              <Dot $color="#ff5f57" />
+              <Dot $color="#febc2e" />
+              <Dot $color="#28c840" />
+            </PreviewBarLeft>
+            <PreviewUrlPill>
+              <LiveDot />
+              telegrampost.vercel.app
+            </PreviewUrlPill>
           </PreviewBar>
           <PreviewContent>
             <PreviewLeft>
@@ -475,14 +571,17 @@ export default function Hero() {
               <PreviewChannel $active>
                 <PreviewChannelAvatar $color="#2196f3">C</PreviewChannelAvatar>
                 <PreviewChannelName>@CryptoTrading</PreviewChannelName>
+                <PreviewMemberCount>12.4K</PreviewMemberCount>
               </PreviewChannel>
               <PreviewChannel>
                 <PreviewChannelAvatar $color="#9c27b0">M</PreviewChannelAvatar>
                 <PreviewChannelName>@MarketSignals</PreviewChannelName>
+                <PreviewMemberCount>8.9K</PreviewMemberCount>
               </PreviewChannel>
               <PreviewChannel>
                 <PreviewChannelAvatar $color="#f44336">N</PreviewChannelAvatar>
                 <PreviewChannelName>@DailyNews</PreviewChannelName>
+                <PreviewMemberCount>31.2K</PreviewMemberCount>
               </PreviewChannel>
             </PreviewLeft>
             <PreviewCenter>
@@ -533,6 +632,7 @@ export default function Hero() {
           </PreviewContent>
         </PreviewFrame>
       </PreviewWrapper>
+    </HeroInner>
     </HeroSection>
   );
 }
