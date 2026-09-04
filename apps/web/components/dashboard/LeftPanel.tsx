@@ -458,6 +458,9 @@ export default function LeftPanel() {
   const handleChannelClick = (id: string) => {
     setSelectedChannelId(id)
     clearSelectedPost()
+    if (pathname !== '/dashboard') {
+      router.push('/dashboard')
+    }
   }
 
   return (
