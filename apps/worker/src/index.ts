@@ -86,16 +86,22 @@ export default {
 
     // ─── Recovery: stale 'publishing' posts ──────────────────────────────────────
     // A delivery that died between claim (status → 'publishing') and its terminal
-    // write (published/failed) used to strand the post forever: the due query
-    // below only selects status='scheduled', so an orphaned 'publishing' row was
-    // never reclaimed and the whole series appeared stuck at its first run.
-    // Normal deliveries finish in a few seconds, so anything still 'publishing'
-    // after STALE_PUBLISHING_MS is a dead attempt — flip it back to 'scheduled'
-    // and let the due query below re-claim it in the same tick. The idempotency
-    // key is reused, so a leftover half-finished attempt can never double-post.
+    // write (published/failed) used to strand the post forever. We now settle any
+    // attempt that has been 'publishing' for more than STALE_PUBLISHING_MS into a
+    // terminal, actionable 'failed' state (normal deliveries finish in seconds).
+    // Marking it 'failed' — instead of auto-re-publishing — avoids a loop where a
+    // persistently-broken send keeps bouncing publishing → scheduled → publishing,
+    // which is exactly what made a stuck post look permanently stuck. The owner
+    // can retry, edit, reschedule or cancel the post directly. The idempotency key
+    // is kept, so a leftover half-finished attempt can never double-post on retry.
     const stale = await db
       .update(posts)
-      .set({ status: 'scheduled', updatedAt: now })
+      .set({
+        status: 'failed',
+        updatedAt: now,
+        errorMessage:
+          'Publishing timed out — Telegram never confirmed the attempt. Review and retry.',
+      })
       .where(
         and(
           eq(posts.status, 'publishing'),

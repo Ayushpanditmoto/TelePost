@@ -35,6 +35,11 @@ const PUBLISHABLE_STATUSES = new Set(['draft', 'scheduled', 'failed'])
 // Statuses whose message text can be edited (nothing sent to Telegram yet or
 // delivery never succeeded). Published posts are frozen as-is by design.
 const CONTENT_EDITABLE_STATUSES = new Set(['draft', 'scheduled', 'failed'])
+// Posts an owner can cancel. 'publishing'/'failed' are included so a stuck or
+// dead delivery can always be cancelled — the publisher skips a row it reads as
+// 'cancelled', so cancelling a claim that already fired is safe (the final DB
+// write targets the row, but the send to Telegram already happened regardless).
+const CANCELABLE_STATUSES = new Set(['draft', 'scheduled', 'failed', 'publishing'])
 
 // ─── Validation helpers ──────────────────────────────────────────────────────
 
@@ -340,7 +345,8 @@ postRoutes.patch('/:id', async (c) => {
 
 // DELETE /api/posts/:id — remove the post from TelePost's database only.
 // The published Telegram message is intentionally left untouched: deleting a
-// record here never reaches the live channel. Publishing-in-flight is locked.
+// record here never reaches the live channel. A post stuck in 'publishing' (a
+// lost delivery attempt) can still be deleted so the owner can clean it up.
 // `?scope=series` additionally deletes every not-yet-delivered sibling of a
 // recurring series ("stop repeats") while keeping published history intact.
 postRoutes.delete('/:id', async (c) => {
@@ -348,10 +354,6 @@ postRoutes.delete('/:id', async (c) => {
   const check = await ownedPostOrError(c, user, c.req.param('id'))
   if (!check.ok) return c.json({ error: check.error }, check.status)
   const { post } = check
-
-  if (post.status === 'publishing') {
-    return c.json({ error: 'Cannot delete a post while it is being published' }, 409)
-  }
 
   const db = createDb(c.env.DB)
 
@@ -362,7 +364,7 @@ postRoutes.delete('/:id', async (c) => {
       .select()
       .from(posts)
       .where(and(eq(posts.userId, user.id), eq(posts.seriesId, seriesId)))
-    targets = siblings.filter((row) => row.status !== 'publishing')
+    targets = siblings
   }
 
   // Best-effort cleanup of any media blobs attached to these posts before the
@@ -480,7 +482,7 @@ postRoutes.post('/:id/cancel', async (c) => {
   if (!check.ok) return c.json({ error: check.error }, check.status)
   const { post } = check
 
-  if (!EDITABLE_STATUSES.has(post.status)) {
+  if (!CANCELABLE_STATUSES.has(post.status)) {
     return c.json({ error: `Cannot cancel a ${post.status} post` }, 409)
   }
 
