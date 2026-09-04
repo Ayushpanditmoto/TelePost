@@ -78,13 +78,23 @@ export default function TelegramLoginButton() {
           )
           if (res.ok) {
             clearInterval(interval)
+            // The status response sets the session cookie. Read the session
+            // back before navigating so the dashboard guard cannot see the
+            // previous cached logged-out state during the route transition.
+            const { user } = await api<{ user: import('@/lib/api').SessionUser }>(
+              '/api/auth/me'
+            )
+            queryClient.setQueryData(['me'], { user })
             setBusy(false)
-            await queryClient.invalidateQueries({ queryKey: ['me'] })
             router.push('/dashboard')
           } else if (res.status === 404) {
             clearInterval(interval)
             setBusy(false)
             setError('Login session expired — try again.')
+          } else if (res.status === 410) {
+            clearInterval(interval)
+            setBusy(false)
+            setError('This login session was already used — try again.')
           }
           // 202 pending → keep polling.
         } catch {
